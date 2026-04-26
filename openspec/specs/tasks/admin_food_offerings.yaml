@@ -1,0 +1,69 @@
+# openspec/specs/tasks/admin_food_offerings.yaml
+id: admin_food_offerings
+name: Admin Food Offerings Management
+description: Admin tasks for managing food offerings
+version: 1.0
+operations:
+  create_offering:
+    description: Create a new food offering
+    inputs:
+      - name: offering_data
+        type: object
+        required: true
+        properties:
+          name:
+            type: string
+          category:
+            type: string
+            enum: ["meat", "non_meat"]
+          description:
+            type: string
+          price:
+            type: number
+    outputs:
+      - name: success
+        type: boolean
+      - name: message
+        type: string
+    error_codes:
+      - 400: Invalid input data
+      - 409: Offering already exists
+
+  update_offering:
+    description: Update an existing food offering
+    inputs:
+      - name: offering_id
+        type: string
+        required: true
+      - name: update_data
+        type: object
+        required: true
+        properties:
+          name:
+            type: string
+          description:
+            type: string
+          price:
+            type: number
+    outputs:
+      - name: success
+        type: boolean
+      - name: message
+        type: string
+    error_codes:
+      - 404: Offering not found
+      - 400: Invalid input data
+
+  delete_offering:
+    description: Delete a food offering
+    inputs:
+      - name: offering_id
+        type: string
+        required: true
+    outputs:
+      - name: success
+        type: boolean
+      - name: message
+        type: string
+    error_codes:
+      - 404: Offering not found

@@ -1,0 +1,74 @@
+# openspec/specs/food_offerings/food_offerings_spec.yaml
+id: food_offerings_catalog
+name: Food Offerings Catalog
+description: Catalog of all food offerings categorized as meat and non-meat
+version: 1.0
+operations:
+  create_offering:
+    description: Create a new food offering
+    inputs:
+      - name: offering_name
+        type: string
+        required: true
+      - name: category
+        type: string
+        enum: ["meat", "non_meat"]
+        required: true
+      - name: description
+        type: string
+        required: false
+      - name: price
+        type: number
+        required: true
+    outputs:
+      - name: offering_id
+        type: string
+    error_codes:
+      - 400: Invalid input
+      - 409: Offering already exists
+
+  list_offerings:
+    description: List all food offerings
+    inputs: []
+    outputs:
+      - name: offerings
+        type: array
+        items:
+          type: object
+          properties:
+            offering_id:
+              type: string
+            name:
+              type: string
+            category:
+              type: string
+            description:
+              type: string
+            price:
+              type: number
+    error_codes:
+      - 500: Internal server error
+
+  get_offering:
+    description: Get details of a specific food offering
+    inputs:
+      - name: offering_id
+        type: string
+        required: true
+    outputs:
+      - name: offering
+        type: object
+        properties:
+          offering_id:
+            type: string
+          name:
+            type: string
+          category:
+            type: string
+          description:
+            type: string
+          price:
+            type: number
+    error_codes:
+      - 404: Offering not found
+      - 500: Internal server error
