@@ -1,0 +1,387 @@
+# Go
+# See https://github.com/golang/go/wiki/SettingUpWorkspace
+# for more information about Go workspace setup.
+
+# Generated files
+*.mode
+*.PURCHASED
+.DS_Store
+_*.swp
+*.swp
+*.swo
+.DS_Store
+.DS_Store?
+.idea/
+.vscode/
+
+# Test results
+*.test
+*.testing
+*.test-out
+
+# Deliverables
+bin/
+build/
+dist/
+pkg/
+
+# Dependency directories
+vendor/
+
+# Coverage directory
+.coverage/
+.coverage
+cov/
+
+# GoLand specific
+.idea/
+
+# Go workspace
+.go-workspace
+
+# GoLand specific
+.idea/
+
+# GoLand specific
+.idea/
+
+# Docker
+.Dockerfile
+.dockerignore
+.docker-insecure
+.docker-out
+.dockerenv
+
+# Logs
+logs/
+*.log
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.*.local
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+
+# IDE specific
+.idea/
+.vscode/
+
+# Build artifacts
+build/
+bin/
+out/
+obj/
+BUILD/
+TAGS
+
+# Miscellaneous
+*.swp
+*.swo
+*.pyc
+*.pyo
+*.pyd
+*.class
+*.dll
+*.exe
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Database
+*.sqlite3
+*.db
+*.db-journal
+
+# Node.js
+node_modules/
+npm-debug.log.pid
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ruby
+gem
+.gems
+
+# Java
+target/
+
+# PHP
+phpunit.result.cache
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+
+# Kubernetes
+kubeconfig
+
+# GoLand
+.idea/
+
+# VS Code
+.vscode/
+
+# Go
+# See https://github.com/golang/go/wiki/SettingUpWorkspace
+# for more information about Go workspace setup.
+
+# Generated files
+*.mode
+*.PURCHASED
+.DS_Store
+_DS_Store
+
+# Test results
+*.test
+*.testing
+*.test-out
+
+# Deliverables
+bin/
+build/
+dist/
+pkg/
+
+# Dependency directories
+vendor/
+
+# Coverage directory
+.coverage/
+.coverage
+cov/
+
+# Go workspace
+.go-workspace
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+
+# IDE specific
+.idea/
+.vscode/
+
+# Build artifacts
+build/
+bin/
+out/
+obj/
+BUILD/
+TAGS
+
+# Miscellaneous
+*.swp
+*.swo
+
+# Database
+*.sqlite3
+*.db
+*.db-journal
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.*.local
+
+# Docker
+.Dockerfile
+.dockerignore
+.docker-insecure
+.docker-out
+.dockerenv
+
+# Logs
+logs/
+*.log
+
+# Go
+# See https://github.com/golang/go/wiki/SettingUpWorkspace
+# for more information about Go workspace setup.
+
+# Generated files
+*.mode
+*.PURCHASED
+.DS_Store
+_DS_Store
+
+# Test results
+*.test
+*.testing
+*.test-out
+
+# Deliverables
+bin/
+build/
+dist/
+pkg/
+
+# Dependency directories
+vendor/
+
+# Coverage directory
+.coverage/
+.coverage
+cov/
+
+# Go workspace
+.go-workspace
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+
+# IDE specific
+.idea/
+.vscode/
+
+# Build artifacts
+build/
+bin/
+out/
+obj/
+BUILD/
+TAGS
+
+# Miscellaneous
+*.swp
+*.swo
+
+# Database
+*.sqlite3
+*.db
+*.db-journal
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.*.local
+
+# Docker
+.Dockerfile
+.dockerignore
+.docker-insecure
+.docker-out
+.dockerenv
+
+# Logs
+logs/
+*.log
+
+# Node.js
+node_modules/
+npm-debug.log.pid
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ruby
+gem
+.gems
+
+# Java
+target/
+
+# PHP
+phpunit.result.cache
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+
+# Kubernetes
+kubeconfig
+
+# GoLand
+.idea/
+
+# VS Code
+.vscode/
+
+# Go
+# See https://github.com/golang/go/wiki/SettingUpWorkspace
+# for more information about Go workspace setup.
+
+# Generated files
+*.mode
+*.PURCHASED
+.DS_Store
+_DS_Store
+
+# Test results
+*.test
+*.testing
+*.test-out
+
+# Deliverables
+bin/
+build/
+dist/
+pkg/
+
+# Dependency directories
+vendor/
+
+# Coverage directory
+.coverage/
+.coverage
+cov/
+
+# Go workspace
+.go-workspace
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+
+# IDE specific
+.idea/
+.vscode/
+
+# Build artifacts
+build/
+bin/
+out/
+obj/
+BUILD/
+TAGS
+
+# Miscellaneous
+*.swp
+*.swo
+
+# Database
+*.sqlite3
+*.db
+*.db-journal
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.*.local
