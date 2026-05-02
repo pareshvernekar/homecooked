@@ -27,6 +27,7 @@ All endpoints must adhere to REST principles, using appropriate HTTP methods and
 1. Write unit tests for new features or bug fixes.
 2. Implement the feature to make the tests pass.
 3. Refactor the code while maintaining test coverage.
+4. Test files should be placed in same directory as the files being tested and should be suffixed with _test
 
 ### Code Review
 - All code changes must be reviewed by at least one other developer.

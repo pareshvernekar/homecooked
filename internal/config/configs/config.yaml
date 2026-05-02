@@ -1,0 +1,125 @@
+# Application Configuration
+app:
+  name: "Food Menu System"
+  debug: false
+  version: "0.1.0"
+
+# Server Configuration
+server:
+  host: "0.0.0.0"
+  port: 8080
+
+# Database Configuration
+database:
+  driver: "mysql"
+  host: "localhost"
+  port: 3306
+  name: "food_menu_system"
+  user: "root"
+  password: "password"
+  charset: "utf8mb4"
+  collation: "utf8mb4_unicode_ci"
+
+# Tenant Configuration
+tenant:
+  id_header: "X-Tenant-ID"
+  default_id: "default_tenant"
+
+# Logging Configuration
+logging:
+  level: "debug"
+  format: "json"
+
+# Security Configuration
+security:
+  jwt:
+    secret: "your_jwt_secret_here"
+    expiration: "8h"
+
+# Cache Configuration
+cache:
+  enabled: false
+  ttl: "5m"
+
+# Tenant Isolation Configuration
+tenant_isolation:
+  enabled: true
+  strategy: "row_level_security"
+
+# PostgreSQL Configuration
+postgres:
+  host: "localhost"
+  port: 5432
+  user: "postgres"
+  password: "postgres"
+  database: "food_menu_system_migrations"
+
+# Tenant-Specific Settings
+tenants:
+  tenant_1:
+    name: "Restaurant A"
+    domain: "restaurant-a.example.com"
+    db_name: "restaurant_a_food_menu"
+  tenant_2:
+    name: "Restaurant B"
+    domain: "restaurant-b.example.com"
+    db_name: "restaurant_b_food_menu"
+
+# Feature Flags
+features:
+  notifications: true
+  catering: false
+  weekly_menu: true
+
+# Rate Limiting
+rate_limiting:
+  enabled: true
+  max: 100
+  window: "1m"
+
+# Health Check
+health_check:
+  enabled: true
+  path: "/health"
+
+# Database Connection Pool
+db_pool:
+  max_open_connections: 10
+  max_idle_connections: 5
+  connection_timeout: "5s"
+  max_lifetime: "1h"
+
+# Logging
+logging_config:
+  file: "logs/app.log"
+  max_size: "100MB"
+  max_backups: 3
+  max_age: "30d"
+
+# Redis Configuration
+redis:
+  host: "localhost"
+  port: 6379
+  password: ""
+
+# Email Configuration
+email:
+  smtp:
+    host: "smtp.example.com"
+    port: 587
+    from: "no-reply@foodmenu.com"
+    username: "email@example.com"
+    password: "email_password"
+
+# API Documentation
+api_doc:
+  enabled: true
+  path: "/swagger/doc.json"
+
+# Monitoring
+monitoring:
+  enabled: false
+  endpoint: "http://localhost:8081"
+
+# Health Check Interval
+health_check_interval: "30s"
