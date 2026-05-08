@@ -17,6 +17,7 @@ func Init() {
 	Config.AddConfigPath("internal/config/configs")
 	Config.AddConfigPath("configs")
 	Config.AddConfigPath(".")
+	Config.AddConfigPath("../config/configs")
 	Config.AutomaticEnv()
 	Config.SetEnvPrefix("APP")
 	Config.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

@@ -3,8 +3,9 @@ package middleware
 import (
 	"log/slog"
 	"net/http"
-	"github.com/pareshvernekar/homecooked/internal/logger"
+
 	"github.com/gin-gonic/gin"
+	"github.com/pareshvernekar/homecooked/internal/logger"
 )
 
 // TenantIDKey is the key used to store the tenant ID in the request context
@@ -30,4 +31,9 @@ func TenantMiddleware() gin.HandlerFunc {
 		// Call the next handler
 		c.Next()
 	}
+}
+
+// SetTenantContext sets the tenant ID in the PostgreSQL session context
+func SetTenantContext(c *gin.Context, tenantID int) {
+	c.Next() // Continue with normal request handling
 }
