@@ -37,14 +37,14 @@ This document outlines the implementation tasks for the Food Menu System, a REST
 
 ### Phase 1.3: Build and Lint Setup
 
-- [ ] T007 Create Makefile for build and run tasks
-  - Create Makefile with build, run, test, and migrate targets
-  - Define commands for local development and deployment
+- [✅] T007 Create Makefile for build and run tasks
+  - ✓ Created Makefile with build, run, test, migrate, and lint targets
+  - ✓ Added commands for local development and deployment
 
-- [ ] T008 Set up linting with golangci-lint
-  - Install golangci-lint
-  - Configure .golangci.yml with project-specific linting rules
-  - Add linting to Makefile targets
+- [✅] T008 Set up linting with golangci-lint
+  - ✓ Installed golangci-lint
+  - ✓ Configured .golangci.yml with project-specific linting rules (errcheck, staticcheck)
+  - ✓ Added lint target to Makefile
 
 ## Phase 2: Database Setup Phase
 ### Phase 2.1: Database Schema Implementation

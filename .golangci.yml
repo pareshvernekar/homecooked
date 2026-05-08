@@ -1,0 +1,11 @@
+version: "2"
+linters:
+  enable:
+    - errcheck
+    - staticcheck
+
+issues:
+  exclude-rules:
+    - path: "internal/config/config.go"
+      linters:
+        - goimports

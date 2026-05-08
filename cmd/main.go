@@ -84,7 +84,13 @@ func main() {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch orders"})
 			return
 		}
-		defer rows.Close()
+		defer func() {
+			if rows != nil {
+				if closeErr := rows.Close(); closeErr != nil {
+					logger.Logger.Error("Failed to close rows", slog.Any("error", closeErr))
+				}
+			}
+		}()
 
 		orders := []map[string]interface{}{}
 		for rows.Next() {
@@ -109,5 +115,11 @@ func main() {
 	}
 
 	// Note: The defer is for testing/graceful shutdown scenarios
-	defer database.Close()
+	defer func() {
+
+		if closeErr := database.Close(); closeErr != nil {
+			logger.Logger.Error("Failed to close database", slog.Any("error", closeErr))
+		}
+
+	}()
 }

@@ -60,20 +60,30 @@ func InitDB(tenantID string) error {
 	// Execute query to set tenant context in session - ensures all queries on this connection use correct RLS policies
 	if err := SetTenantContext(tenantID); err != nil {
 		logger.Logger.Error("Failed to set tenant ID", slog.Any("error", err))
-		DB.Close()
+		dbErr := DB.Close()
+		if dbErr != nil {
+			logger.Logger.Error("Failed to close database after tenant context error", slog.Any("error", dbErr))
+		}
 		return err
 	}
 
 	// Ping to ensure connection is healthy and session is set correctly
 	if err := DB.Ping(); err != nil {
 		logger.Logger.Error("Database connection failed", slog.Any("error", err))
-		DB.Close()
+		dbErr := DB.Close()
+		if dbErr != nil {
+			logger.Logger.Error("Failed to close database after tenant context error", slog.Any("error", dbErr))
+		}
 		return err
 	}
 
 	// 3. Ensure the connection is closed when the program exits
-	defer DB.Close()
+	defer func() {
+		if closeErr := DB.Close(); closeErr != nil {
+			logger.Logger.Error("Failed to close DB", slog.Any("error", closeErr))
+		}
 
+	}()
 	logger.Logger.Info("Database connected successfully with tenant isolation", "tenant_id", tenantID)
 	return nil
 }
@@ -92,7 +102,11 @@ func SetTenantContext(tenantID string) error {
 // Close closes the database connection pool
 func Close() error {
 	if DB != nil {
-		DB.Close() // This closes all idle connections in the pool
+		defer func() {
+			if closeErr := DB.Close(); closeErr != nil {
+				logger.Logger.Error("Failed to close DB", slog.Any("error", closeErr))
+			}
+		}()
 		logger.Logger.Info("Database connection pool closed")
 	}
 	return nil

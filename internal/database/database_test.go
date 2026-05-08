@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"regexp"
 	"testing"
@@ -9,12 +10,17 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/jmoiron/sqlx"
 	"github.com/pareshvernekar/homecooked/internal/config"
+	"github.com/pareshvernekar/homecooked/internal/logger"
 )
 
 func TestInitDB_WithConnectionString(t *testing.T) {
 	TenantID = "1"
 	DB = NewMockDB("1") // Direct initialization - no defer needed
-	defer DB.Close()    // Ensure mock DB is closed after test
+	defer func() {
+		if closeErr := DB.Close(); closeErr != nil {
+			logger.Logger.Error("Failed to close DB", slog.Any("error", closeErr))
+		}
+	}() // Ensure mock DB is closed after test
 	if err := SetTenantContext("1"); err == nil {
 		t.Log("✓ Tenant context set successfully in mock mode")
 	} else {
@@ -28,7 +34,11 @@ func TestSetTenantContext(t *testing.T) {
 
 	TenantID = "test-tenant-uuid-12345"
 	DB = NewMockDB("test-tenant-uuid-12345")
-	defer DB.Close() // Ensure mock DB is closed after test
+	defer func() {
+		if closeErr := DB.Close(); closeErr != nil {
+			logger.Logger.Error("Failed to close DB", slog.Any("error", closeErr))
+		}
+	}() // Ensure mock DB is closed after test
 	err := SetTenantContext("test-tenant-uuid-12345")
 	if err != nil {
 		t.Errorf("Failed to set tenant context: %v", err)
@@ -46,7 +56,11 @@ func TestGetDB(t *testing.T) {
 	initTest()
 	// Create mock DB with configured pool settings (direct instantiation)
 	DB = NewMockDB("1") // ← Mock created directly, no InitDB call
-	defer DB.Close()    // Ensure mock DB is closed after test
+	defer func() {
+		if closeErr := DB.Close(); closeErr != nil {
+			logger.Logger.Error("Failed to close DB", slog.Any("error", closeErr))
+		}
+	}() // Ensure mock DB is closed after test
 
 	db := GetDB()
 	if db == nil {
@@ -66,7 +80,11 @@ func TestSetTenantID(t *testing.T) {
 
 	// Create mock DB with configured pool settings (direct instantiation)
 	DB = NewMockDB("original-tenant-id") // ← Mock created directly, no InitDB call
-	defer DB.Close()                     // Ensure mock DB is closed after test
+	defer func() {
+		if closeErr := DB.Close(); closeErr != nil {
+			logger.Logger.Error("Failed to close DB", slog.Any("error", closeErr))
+		}
+	}() // Ensure mock DB is closed after test
 
 	currentID := TenantID
 	if currentID != "original-tenant-id" {
@@ -105,7 +123,11 @@ func TestConnectionPoolConfigurations(t *testing.T) {
 
 	// Create mock DB with configured pool settings (direct instantiation)
 	DB = NewMockDB("1") // ← Mock created directly, no InitDB call
-	defer DB.Close()    // Ensure mock DB is closed after test
+	defer func() {
+		if closeErr := DB.Close(); closeErr != nil {
+			logger.Logger.Error("Failed to close DB", slog.Any("error", closeErr))
+		}
+	}() // Ensure mock DB is closed after test
 	// Set the pool configuration on our mock
 	DB.SetMaxOpenConns(defaultMaxOpenConns) // 25
 	DB.SetMaxIdleConns(defaultMaxIdleConns) // 5
@@ -124,11 +146,26 @@ func TestConnectionPoolConfigurations(t *testing.T) {
 // Helper function for test setup
 func initTest() {
 	// Initialize config before calling InitDB
-	os.Setenv("database.host", "localhost")
-	os.Setenv("database.port", "5432")
-	os.Setenv("database.user", "testuser")
-	os.Setenv("database.password", "testpass")
-	os.Setenv("database.name", "testdb")
+	err := os.Setenv("database.host", "localhost")
+	if err != nil {
+		panic(fmt.Sprintf("Failed to set environment variable: %v", err))
+	}
+	err = os.Setenv("database.port", "5432")
+	if err != nil {
+		panic(fmt.Sprintf("Failed to set environment variable: %v", err))
+	}
+	err = os.Setenv("database.user", "testuser")
+	if err != nil {
+		panic(fmt.Sprintf("Failed to set environment variable: %v", err))
+	}
+	err = os.Setenv("database.password", "testpass")
+	if err != nil {
+		panic(fmt.Sprintf("Failed to set environment variable: %v", err))
+	}
+	err = os.Setenv("database.name", "testdb")
+	if err != nil {
+		panic(fmt.Sprintf("Failed to set environment variable: %v", err))
+	}
 
 	// Trigger config initialization from env vars
 	config.Init()
