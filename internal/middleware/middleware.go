@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/pareshvernekar/homecooked/internal/logger"
 )
 
@@ -36,4 +37,54 @@ func TenantMiddleware() gin.HandlerFunc {
 // SetTenantContext sets the tenant ID in the PostgreSQL session context
 func SetTenantContext(c *gin.Context, tenantID int) {
 	c.Next() // Continue with normal request handling
+}
+
+// GetTenantID returns the tenant ID from the request context
+func GetTenantID(c *gin.Context) string {
+	tenantID := c.GetString(TenantIDKey)
+	return tenantID
+}
+
+// RequireValidTenantHeader is an alternative middleware that provides better error handling
+func RequireValidTenantHeader() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Extract tenant ID from X-Tenant-ID header
+		tenantID := c.GetHeader("X-Tenant-ID")
+
+		if tenantID == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, map[string]interface{}{
+				"error":      "Missing required X-Tenant-ID header",
+				"code":       "MISSING_TENANT_ID",
+				"request_id": c.GetString("request_id"),
+			})
+			return
+		}
+
+		// Validate UUID format using uuid.Parse
+		if _, err := uuid.Parse(tenantID); err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, map[string]interface{}{
+				"error":      "Invalid X-Tenant-ID format",
+				"code":       "INVALID_TENANT_ID",
+				"details":    "The provided tenant ID is not a valid UUID",
+				"request_id": c.GetString("request_id"),
+			})
+			return
+		}
+
+		// Set tenant ID in context for downstream handlers to access
+		c.Set(TenantIDKey, tenantID)
+
+		// Continue with the request
+		c.Next()
+	}
+}
+
+// ValidateTenantUUID validates that a string is a valid UUID format
+func ValidateTenantUUID(tenantID string) bool {
+	if tenantID == "" {
+		return false
+	}
+
+	_, err := uuid.Parse(tenantID)
+	return err == nil
 }

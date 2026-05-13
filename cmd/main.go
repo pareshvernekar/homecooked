@@ -11,7 +11,9 @@ import (
 
 	"github.com/pareshvernekar/homecooked/internal/config"
 	"github.com/pareshvernekar/homecooked/internal/database"
+	"github.com/pareshvernekar/homecooked/internal/handlers"
 	"github.com/pareshvernekar/homecooked/internal/logger"
+	"github.com/pareshvernekar/homecooked/internal/repository"
 	"github.com/pareshvernekar/homecooked/internal/server"
 )
 
@@ -23,6 +25,7 @@ func main() {
 		logger.Logger.Error("Failed to read configuration", slog.Any("error", err))
 		os.Exit(1)
 	}
+
 	// Get tenant ID from environment or use default
 	tenantID := "1"
 	if tenantIDStr := os.Getenv("TENANT_ID"); tenantIDStr != "" {
@@ -44,9 +47,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create server instance
+	// Create FoodItemRepository using dependency injection
+	// Repository gets access to database through constructor, not direct import
+	foodItemRepo := repository.NewFoodItemRepository(db, tenantID)
+
+	// Create handler with repository via dependency injection
+	foodItemHandler := handlers.NewFoodItemHandler(foodItemRepo)
+
+	// Create server instance with repository injection
 	srv := server.NewServer(db, logger.Logger)
-	log.Printf("🏗️  Server initialized with config: port=%d", config.Config.GetInt("server.port"))
+
+	// Setup routes with handler that has repository dependency
+	server.SetupRoutes(srv.Router, db, logger.Logger, foodItemHandler)
 
 	// Create application context with cancellation
 	ctx, cancel := context.WithCancel(context.Background())
@@ -56,7 +68,6 @@ func main() {
 	go func() {
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
 		<-sigChan
 		log.Println("⏳ Received shutdown signal...")
 		cancel()
@@ -70,84 +81,4 @@ func main() {
 
 	log.Println("✅ Service running successfully")
 	select {} // Keep main alive until context is cancelled
-
-	/*
-		// Create the Gin router
-		router := gin.Default()
-
-		// Use the TenantMiddleware - extracts tenant ID from X-Tenant-ID header
-		router.Use(middleware.TenantMiddleware())
-
-		// Define a route that uses tenant isolation automatically
-		router.GET("/", func(c *gin.Context) {
-			tenantID, exists := c.Get(middleware.TenantIDKey)
-			if !exists {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Tenant ID not found"})
-				return
-			}
-
-			logger.Logger.Info("Handling request with tenant ID", slog.Any("tenant_id", tenantID))
-			c.JSON(http.StatusOK, gin.H{"tenant_id": tenantID, "message": "Welcome to HomeCook!"})
-		})
-
-		router.GET("/orders", func(c *gin.Context) {
-			tenantIDInt, exists := c.Get(middleware.TenantIDKey)
-			if !exists {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Tenant ID not found"})
-				return
-			}
-
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-
-			db := database.GetDB()
-			if db == nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Database connection not available"})
-				return
-			}
-
-			rows, err := db.QueryContext(ctx, "SELECT order_id, item_name FROM tenant_orders WHERE tenant_id = $1", tenantIDInt.(int))
-			if err != nil {
-				logger.Logger.Error("Failed to fetch orders", slog.Any("error", err))
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch orders"})
-				return
-			}
-			defer func() {
-				if rows != nil {
-					if closeErr := rows.Close(); closeErr != nil {
-						logger.Logger.Error("Failed to close rows", slog.Any("error", closeErr))
-					}
-				}
-			}()
-
-			orders := []map[string]interface{}{}
-			for rows.Next() {
-				var orderID int
-				var item_name string
-				if err := rows.Scan(&orderID, &item_name); err != nil {
-					logger.Logger.Error("Failed to parse orders", slog.Any("error", err))
-					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse orders"})
-					return
-				}
-				orders = append(orders, map[string]interface{}{"id": orderID, "item_name": item_name})
-			}
-
-			logger.Logger.Info("Fetched orders for tenant", "tenant_id", tenantIDInt, "count", len(orders))
-			c.JSON(http.StatusOK, gin.H{"orders": orders})
-		})
-
-		// Start the HTTP server
-		if err := router.Run(":8080"); err != nil {
-			logger.Logger.Error("Failed to start server", slog.Any("error", err))
-			os.Exit(1)
-		}
-
-		// Note: The defer is for testing/graceful shutdown scenarios
-		defer func() {
-
-			if closeErr := database.Close(); closeErr != nil {
-				logger.Logger.Error("Failed to close database", slog.Any("error", closeErr))
-			}
-
-		}()	*/
 }

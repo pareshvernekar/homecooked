@@ -140,7 +140,7 @@ A **MenuItem** represents an individual item in a **WeeklyMenu** or **CateringMe
   "name": "string",
   "description": "string",
   "price": "number",
-  "category": "string",
+  "categoryId": "string",
   "createdAt": "datetime",
   "updatedAt": "datetime"
 }
@@ -150,10 +150,10 @@ A **MenuItem** represents an individual item in a **WeeklyMenu** or **CateringMe
 
 #### Tables
 
-**tenants**
+**tenant**
 ```sql
-CREATE TABLE tenants (
-  id VARCHAR(36) PRIMARY KEY,
+CREATE TABLE tenant (
+  id VARCHAR(50) PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
   description TEXT,
   created_at DATETIME NOT NULL,
@@ -161,83 +161,103 @@ CREATE TABLE tenants (
 );
 ```
 
-**menu_items**
+**menu_item**
 ```sql
-CREATE TABLE menu_items (
-  id VARCHAR(36) PRIMARY KEY,
-  tenant_id VARCHAR(36) NOT NULL,
-  food_item_id VARCHAR(36) NOT NULL,
-  menu_id VARCHAR(36) NOT NULL,
+CREATE TABLE menu_item (
+  id VARCHAR(50) PRIMARY KEY,
+  tenant_id VARCHAR(50) NOT NULL,
+  food_item_id VARCHAR(50) NOT NULL,
+  menu_id VARCHAR(50) NOT NULL,
   menu_type ENUM('weekly', 'catering') NOT NULL,
+  description VARCHAR(100),
   size VARCHAR(50) NOT NULL,
   price DECIMAL(10, 2) NOT NULL,
   sequence INT NOT NULL,
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL,
-  FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
-  FOREIGN KEY (food_item_id) REFERENCES food_items(id) ON DELETE CASCADE,
-  FOREIGN KEY (menu_id) REFERENCES weekly_menus(id) ON DELETE CASCADE,
-  FOREIGN KEY (menu_id) REFERENCES catering_menus(id) ON DELETE CASCADE,
+  FOREIGN KEY (tenant_id) REFERENCES tenant(id) ON DELETE CASCADE,
+  FOREIGN KEY (food_item_id) REFERENCES food_item(id) ON DELETE CASCADE,
+  FOREIGN KEY (menu_id) REFERENCES weekly_menu(id) ON DELETE CASCADE,
+  FOREIGN KEY (menu_id) REFERENCES catering_menu(id) ON DELETE CASCADE,
   UNIQUE KEY (tenant_id, menu_id, sequence)  -- Ensures unique sequence within each menu for each tenant
 );
 ```
 
-**weekly_menus**
+**weekly_menu**
 ```sql
-CREATE TABLE weekly_menus (
-  id VARCHAR(36) PRIMARY KEY,
-  tenant_id VARCHAR(36) NOT NULL,
+CREATE TABLE weekly_menu (
+  id VARCHAR(50) PRIMARY KEY,
+  tenant_id VARCHAR(50) NOT NULL,
   name VARCHAR(100) NOT NULL,
   description TEXT,
   start_date DATETIME NOT NULL,
   end_date DATETIME NOT NULL,
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL,
-  FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+  FOREIGN KEY (tenant_id) REFERENCES tenant(id) ON DELETE CASCADE
 );
 ```
 
-**catering_menus**
+**catering_menu**
 ```sql
-CREATE TABLE catering_menus (
-  id VARCHAR(36) PRIMARY KEY,
-  tenant_id VARCHAR(36) NOT NULL,
+CREATE TABLE catering_menu (
+  id VARCHAR(50) PRIMARY KEY,
+  tenant_id VARCHAR(50) NOT NULL,
   name VARCHAR(100) NOT NULL,
   description TEXT,
   event_date DATETIME NOT NULL,
   event_location VARCHAR(200) NOT NULL,
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL,
-  FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+  FOREIGN KEY (tenant_id) REFERENCES tenant(id) ON DELETE CASCADE
 );
 ```
 
-**food_catalogs**
+**food_catalog**
 ```sql
-CREATE TABLE food_catalogs (
-  id VARCHAR(36) PRIMARY KEY,
-  tenant_id VARCHAR(36) NOT NULL,
+CREATE TABLE food_catalog (
+  id VARCHAR(50) PRIMARY KEY,
+  tenant_id VARCHAR(50) NOT NULL,
   name VARCHAR(100) NOT NULL,
   description TEXT,
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL,
-  FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+  FOREIGN KEY (tenant_id) REFERENCES tenant(id) ON DELETE CASCADE
 );
 ```
 
-**food_items**
+**food_item**
 ```sql
-CREATE TABLE food_items (
-  id VARCHAR(36) PRIMARY KEY,
-  tenant_id VARCHAR(36) NOT NULL,
+CREATE TABLE food_item (
+  id VARCHAR(50) PRIMARY KEY,
+  tenant_id VARCHAR(50) NOT NULL,
   name VARCHAR(100) NOT NULL,
   description TEXT,
-  price DECIMAL(10, 2) NOT NULL,
-  category VARCHAR(50) NOT NULL,
+  category_id VARCHAR(50) NOT NULL,
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL,
-  FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+  FOREIGN KEY (tenant_id) REFERENCES tenant(id) ON DELETE CASCADE
 );
+```
+
+**food_category**
+```sql
+CREATE TABLE food_category (
+  id VARCHAR(50) PRIMARY KEY,
+  tenant_id VARCHAR(50) NOT NULL,
+  name VARCHAR(100) NOT NULL,
+  description TEXT,
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  FOREIGN KEY (tenant_id) REFERENCES tenant(id) ON DELETE CASCADE
+);
+```
+
+-- Link food_items to categories
+```sql
+ALTER TABLE food_item
+  ADD CONSTRAINT fk_food_item_category
+  FOREIGN KEY (category_id) REFERENCES food_category(id) ON DELETE RESTRICT;
 ```
 
 ### Relationships
@@ -469,7 +489,7 @@ testFuncCreateFoodItem := func(t *testing.T) {
         Name:        "Chicken Biryani",
         Description: "Spicy biryani with chicken",
         Price:       250.00,
-        Category:    "Indian",
+          CategoryId:  "category-uuid-1",
     }
     
     // Execute
@@ -529,100 +549,45 @@ handlerCreateFoodItem := func(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
---- 
 
-### Database Schema
 
-#### Food Items Table
+
+#### Order Table
 ```sql
-CREATE TABLE food_items (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    price DECIMAL(10, 2) NOT NULL,
-    category VARCHAR(100),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE order (
+  id VARCHAR(50) PRIMARY KEY,
+  user_id VARCHAR(50) NOT NULL,
+  menu_type VARCHAR(10) NOT NULL, -- weekly or catering
+  menu_id VARCHAR(50) NOT NULL,
+  status VARCHAR(20) NOT NULL, -- pending, preparing, ready, delivered
+  order_date TIMESTAMP WITH TIME ZONE NOT NULL,
+  delivery_date TIMESTAMP WITH TIME ZONE,
+  total_price DECIMAL(10, 2) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
-#### Weekly Menus Table
+#### Order Item Table
 ```sql
-CREATE TABLE weekly_menus (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    start_date TIMESTAMP WITH TIME ZONE NOT NULL,
-    end_date TIMESTAMP WITH TIME ZONE NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE order_item (
+  id VARCHAR(50) PRIMARY KEY,
+  order_id VARCHAR(50) REFERENCES order(id),
+  menu_item_id VARCHAR(50) REFERENCES menu_item(id),
+  quantity INTEGER NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
-#### Catering Menus Table
+#### Notification Table
 ```sql
-CREATE TABLE catering_menus (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    event_date TIMESTAMP WITH TIME ZONE NOT NULL,
-    event_location VARCHAR(255),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-#### Menu Items Table
-```sql
-CREATE TABLE menu_items (
-    id SERIAL PRIMARY KEY,
-    food_item_id INTEGER REFERENCES food_items(id),
-    menu_id INTEGER,
-    menu_type VARCHAR(10) NOT NULL, -- weekly or catering
-    size VARCHAR(100),
-    price DECIMAL(10, 2) NOT NULL,
-    sequence INTEGER NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-#### Orders Table
-```sql
-CREATE TABLE orders (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL,
-    menu_type VARCHAR(10) NOT NULL, -- weekly or catering
-    menu_id INTEGER NOT NULL,
-    status VARCHAR(20) NOT NULL, -- pending, preparing, ready, delivered
-    order_date TIMESTAMP WITH TIME ZONE NOT NULL,
-    delivery_date TIMESTAMP WITH TIME ZONE,
-    total_price DECIMAL(10, 2) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-#### Order Items Table
-```sql
-CREATE TABLE order_items (
-    id SERIAL PRIMARY KEY,
-    order_id INTEGER REFERENCES orders(id),
-    menu_item_id INTEGER REFERENCES menu_items(id),
-    quantity INTEGER NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-#### Notifications Table
-```sql
-CREATE TABLE notifications (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL,
-    order_id INTEGER,
-    type VARCHAR(20) NOT NULL, -- order_placed, order_preparing, order_ready, order_delivered
-    message TEXT NOT NULL,
-    is_read BOOLEAN DEFAULT false,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE notification (
+  id VARCHAR(50) PRIMARY KEY,
+  user_id VARCHAR(50) NOT NULL,
+  order_id VARCHAR(50),
+  type VARCHAR(20) NOT NULL, -- order_placed, order_preparing, order_ready, order_delivered
+  message TEXT NOT NULL,
+  is_read BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 ```

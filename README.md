@@ -11,6 +11,32 @@ OR
 ```
 go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 ```
+
+# Docker required to run PostGreSQL
+
+## Start the Postgres
+
+### To create the DB
+```
+docker compose -f docker-compose.yml up -d db
+```
+
+```
+ docker compose up -d
+```
+
+## Stop the Postgres
+
+ ```
+ docker compose down
+```
+
+## Stop Postgres and clean the volume (Delete the tables)
+```
+docker compose down -v
+```
+
+
 # Make commands
 
 # Build the Go binary
@@ -33,3 +59,25 @@ make deploy
 
 # Clean up the build artifacts and Docker image
 make clean
+
+# Docker commands
+
+ ## How to Run
+
+  # Build, start DB, and app together
+  docker compose -f docker-compose.prod.yml up --build -d
+
+  # Wait for initialization (DB schema loads from init.sql)
+  sleep 20
+
+  # Verify both containers are healthy
+  docker compose ps
+
+  # Access the API
+  curl http://localhost:8080/health
+
+  # Stop everything
+  docker compose -f docker-compose.prod.yml down
+
+  # Restart without removing data
+  docker compose -f docker-compose.prod.yml up -d

@@ -36,11 +36,11 @@ func InitDB(tenantID string) error {
 		connectionString := os.Getenv("DB_CONNECTION_STRING")
 		if connectionString != "" {
 			dbURL = connectionString
-		} else {
-			dbURL = fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=require", host, port, user, password, dbname)
 		}
+	} else {
+		dbURL = fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", host, port, user, password, dbname)
 	}
-
+	fmt.Println("Connecting to database with URL:", dbURL)
 	// Add connection pool parameters to DSN
 	// Note: These apply to the entire connection pool - all connections will share these settings
 	TenantID = tenantID
@@ -91,8 +91,7 @@ func InitDB(tenantID string) error {
 func SetTenantContext(tenantID string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	fmt.Println("DB IS ", DB)
-	if _, err := DB.ExecContext(ctx, "SET app.current_tenant_id = $1", tenantID); err != nil {
+	if _, err := DB.ExecContext(ctx, "SET app.current_tenant_id = '"+tenantID+"'"); err != nil {
 		logger.Logger.Error("Failed to set tenant ID session variable", slog.Any("error", err))
 		return err
 	}

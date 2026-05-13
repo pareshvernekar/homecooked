@@ -37,6 +37,11 @@ All endpoints must adhere to REST principles, using appropriate HTTP methods and
 - Automated tests must run on every commit.
 - Deployments must be automated and reversible.
 
+# Code Traceability Requirements
+- Every requirement block generated in `spec.md` must be assigned a unique ID using the tag pattern `[REQ-XXX]`.
+- During the implementation phase, the code editor must prepend or append inline code comments using the format `// @trace [REQ-XXX]` to any block of code that satisfies that specific requirement.
+- No code may be written or altered without an accompanying trace tag comment.
+
 ## Technology Stack
 
 ### Programming Language

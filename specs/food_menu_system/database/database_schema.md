@@ -21,7 +21,7 @@ All tables follow this naming convention:
 ### 2.1 Tenants
 ```sql
 CREATE TABLE tenants (
-    tenant_id SERIAL PRIMARY KEY,
+    tenant_id VARCHAR(50) PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     domain VARCHAR(255) UNIQUE NOT NULL,
     status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'deleted')),
@@ -34,7 +34,7 @@ CREATE TABLE tenants (
 ### 2.2 Tenant Configuration
 ```sql
 CREATE TABLE tenant_configurations (
-    tenant_id INTEGER REFERENCES tenants(tenant_id) ON DELETE CASCADE PRIMARY KEY,
+    tenant_id VARCHAR(50) REFERENCES tenants(tenant_id) ON DELETE CASCADE PRIMARY KEY,
     default_currency VARCHAR(3) DEFAULT 'USD',
     default_language VARCHAR(10) DEFAULT 'en',
     tax_rate DECIMAL(5,2) DEFAULT 0.00,
@@ -49,8 +49,8 @@ CREATE TABLE tenant_configurations (
 ### 3.1 Users
 ```sql
 CREATE TABLE users (
-    user_id SERIAL PRIMARY KEY,
-    tenant_id INTEGER REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    user_id VARCHAR(50) PRIMARY KEY,
+    tenant_id VARCHAR(50) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     first_name VARCHAR(100),
@@ -68,8 +68,8 @@ CREATE TABLE users (
 ### 3.2 User Roles
 ```sql
 CREATE TABLE user_roles (
-    role_id SERIAL PRIMARY KEY,
-    tenant_id INTEGER REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    role_id VARCHAR(50) PRIMARY KEY,
+    tenant_id VARCHAR(50) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
     name VARCHAR(50) NOT NULL UNIQUE,
     description TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -79,10 +79,10 @@ CREATE TABLE user_roles (
 ### 3.3 User Role Assignments
 ```sql
 CREATE TABLE user_role_assignments (
-    assignment_id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
-    role_id INTEGER REFERENCES user_roles(role_id) ON DELETE CASCADE,
-    tenant_id INTEGER REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    assignment_id VARCHAR(50) PRIMARY KEY,
+    user_id VARCHAR(50) REFERENCES users(user_id) ON DELETE CASCADE,
+    role_id VARCHAR(50) REFERENCES user_roles(role_id) ON DELETE CASCADE,
+    tenant_id VARCHAR(50) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 ```
@@ -92,8 +92,8 @@ CREATE TABLE user_role_assignments (
 ### 4.1 Restaurants
 ```sql
 CREATE TABLE tenant_restaurants (
-    restaurant_id SERIAL PRIMARY KEY,
-    tenant_id INTEGER REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    restaurant_id VARCHAR(50) PRIMARY KEY,
+    tenant_id VARCHAR(50) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     description TEXT,
     address_line1 VARCHAR(255) NOT NULL,
@@ -118,9 +118,9 @@ CREATE TABLE tenant_restaurants (
 ### 4.2 Restaurant Categories
 ```sql
 CREATE TABLE tenant_restaurant_categories (
-    category_id SERIAL PRIMARY KEY,
-    tenant_id INTEGER REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-    restaurant_id INTEGER REFERENCES tenant_restaurants(restaurant_id) ON DELETE CASCADE,
+    category_id VARCHAR(50) PRIMARY KEY,
+    tenant_id VARCHAR(50) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    restaurant_id VARCHAR(50) REFERENCES tenant_restaurants(restaurant_id) ON DELETE CASCADE,
     name VARCHAR(100) NOT NULL,
     description TEXT,
     parent_category_id INTEGER REFERENCES tenant_restaurant_categories(category_id) ON DELETE SET NULL,
@@ -137,10 +137,10 @@ CREATE TABLE tenant_restaurant_categories (
 ### 5.1 Menu Items
 ```sql
 CREATE TABLE tenant_menu_items (
-    menu_item_id SERIAL PRIMARY KEY,
-    tenant_id INTEGER REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-    restaurant_id INTEGER REFERENCES tenant_restaurants(restaurant_id) ON DELETE CASCADE,
-    category_id INTEGER REFERENCES tenant_restaurant_categories(category_id) ON DELETE SET NULL,
+    menu_item_id VARCHAR(50) PRIMARY KEY,
+    tenant_id VARCHAR(50) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    restaurant_id VARCHAR(50) REFERENCES tenant_restaurants(restaurant_id) ON DELETE CASCADE,
+    category_id VARCHAR(50) REFERENCES tenant_restaurant_categories(category_id) ON DELETE SET NULL,
     name VARCHAR(255) NOT NULL,
     description TEXT,
     base_price DECIMAL(10,2) NOT NULL,
@@ -163,9 +163,9 @@ CREATE TABLE tenant_menu_items (
 ### 5.2 Menu Item Images
 ```sql
 CREATE TABLE tenant_menu_item_images (
-    image_id SERIAL PRIMARY KEY,
-    menu_item_id INTEGER REFERENCES tenant_menu_items(menu_item_id) ON DELETE CASCADE,
-    tenant_id INTEGER REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    image_id VARCHAR(50) PRIMARY KEY,
+    menu_item_id VARCHAR(50) REFERENCES tenant_menu_items(menu_item_id) ON DELETE CASCADE,
+    tenant_id VARCHAR(50) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
     url VARCHAR(512) NOT NULL,
     alt_text VARCHAR(255),
     is_primary BOOLEAN DEFAULT FALSE,
@@ -174,77 +174,100 @@ CREATE TABLE tenant_menu_item_images (
 );
 ```
 
-## 6. Inventory Management
+## 5.x Spec-aligned Tables (singular names)
 
-### 6.1 Inventory Categories
+The following tables mirror the `specs/food_menu_system/spec.md` design. Primary keys use `VARCHAR(50)`.
+
+### Food Category
 ```sql
-CREATE TABLE tenant_inventory_categories (
-    category_id SERIAL PRIMARY KEY,
-    tenant_id INTEGER REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+CREATE TABLE food_category (
+    id VARCHAR(50) PRIMARY KEY,
+    tenant_id VARCHAR(50) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
     name VARCHAR(100) NOT NULL,
     description TEXT,
-    parent_category_id INTEGER REFERENCES tenant_inventory_categories(category_id) ON DELETE SET NULL,
-    display_order INTEGER DEFAULT 0,
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    created_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL
-);
-```
-
-### 6.2 Inventory Items
-```sql
-CREATE TABLE tenant_inventory_items (
-    item_id SERIAL PRIMARY KEY,
-    tenant_id INTEGER REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-    category_id INTEGER REFERENCES tenant_inventory_categories(category_id) ON DELETE SET NULL,
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    sku VARCHAR(50) UNIQUE,
-    unit VARCHAR(50) NOT NULL,
-    cost_price DECIMAL(10,2) NOT NULL,
-    selling_price DECIMAL(10,2),
-    supplier_id INTEGER,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    created_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL
-);
-```
-
-### 6.3 Inventory Stock
-```sql
-CREATE TABLE tenant_inventory_stock (
-    stock_id SERIAL PRIMARY KEY,
-    tenant_id INTEGER REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-    item_id INTEGER REFERENCES tenant_inventory_items(item_id) ON DELETE CASCADE,
-    location_id INTEGER,
-    quantity DECIMAL(15,2) NOT NULL DEFAULT 0.00,
-    reorder_threshold DECIMAL(15,2) DEFAULT 0.00,
-    last_stock_take_date TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
-## 7. Orders
-
-### 7.1 Order Statuses
+### Food Item
 ```sql
-CREATE TABLE order_statuses (
-    status_id SERIAL PRIMARY KEY,
-    name VARCHAR(50) NOT NULL UNIQUE,
+CREATE TABLE food_item (
+    id VARCHAR(50) PRIMARY KEY,
+    tenant_id VARCHAR(50) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
     description TEXT,
-    is_terminal BOOLEAN DEFAULT FALSE
+    price DECIMAL(10,2) NOT NULL,
+    category_id VARCHAR(50) REFERENCES food_category(id) ON DELETE RESTRICT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
-### 7.2 Orders
+### Menu Item
 ```sql
-CREATE TABLE tenant_orders (
-    order_id SERIAL PRIMARY KEY,
-    tenant_id INTEGER REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-    user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
-    restaurant_id INTEGER REFERENCES tenant_restaurants(restaurant_id) ON DELETE CASCADE,
+CREATE TABLE menu_item (
+    id VARCHAR(50) PRIMARY KEY,
+    tenant_id VARCHAR(50) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    food_item_id VARCHAR(50) REFERENCES food_item(id) ON DELETE CASCADE,
+    menu_id VARCHAR(50) NOT NULL,
+    menu_type VARCHAR(20) NOT NULL,
+    description VARCHAR(100),
+    size VARCHAR(50),
+    price DECIMAL(10,2) NOT NULL,
+    sequence INTEGER NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Weekly Menu
+```sql
+CREATE TABLE weekly_menu (
+    id VARCHAR(50) PRIMARY KEY,
+    tenant_id VARCHAR(50) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    start_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    end_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Catering Menu
+```sql
+CREATE TABLE catering_menu (
+    id VARCHAR(50) PRIMARY KEY,
+    tenant_id VARCHAR(50) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    event_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    event_location VARCHAR(200),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Food Catalog
+```sql
+CREATE TABLE food_catalog (
+    id VARCHAR(50) PRIMARY KEY,
+    tenant_id VARCHAR(50) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Order
+```sql
+CREATE TABLE "order" (
+    id VARCHAR(50) PRIMARY KEY,
+    tenant_id VARCHAR(50) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    user_id VARCHAR(50) REFERENCES users(user_id) ON DELETE SET NULL,
+    restaurant_id VARCHAR(50) REFERENCES tenant_restaurants(restaurant_id) ON DELETE CASCADE,
     status_id INTEGER REFERENCES order_statuses(status_id) ON DELETE SET NULL,
     order_number VARCHAR(50) UNIQUE NOT NULL,
     total_amount DECIMAL(12,2) NOT NULL,
@@ -268,18 +291,146 @@ CREATE TABLE tenant_orders (
     notes TEXT,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Order Item
+```sql
+CREATE TABLE order_item (
+    id VARCHAR(50) PRIMARY KEY,
+    order_id VARCHAR(50) REFERENCES "order"(id) ON DELETE CASCADE,
+    menu_item_id VARCHAR(50) REFERENCES menu_item(id) ON DELETE SET NULL,
+    quantity INTEGER NOT NULL DEFAULT 1,
+    unit_price DECIMAL(10,2) NOT NULL,
+    discount_amount DECIMAL(10,2) DEFAULT 0.00,
+    tax_rate DECIMAL(5,2) DEFAULT 0.00,
+    total_price DECIMAL(10,2) NOT NULL,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Notification
+```sql
+CREATE TABLE notification (
+    id VARCHAR(50) PRIMARY KEY,
+    tenant_id VARCHAR(50) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    user_id VARCHAR(50) REFERENCES users(user_id) ON DELETE CASCADE,
+    order_id VARCHAR(50) REFERENCES "order"(id) ON DELETE SET NULL,
+    type VARCHAR(50) NOT NULL,
+    message TEXT NOT NULL,
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+## 6. Inventory Management
+
+### 6.1 Inventory Categories
+```sql
+CREATE TABLE tenant_inventory_categories (
+    category_id VARCHAR(50) PRIMARY KEY,
+    tenant_id VARCHAR(50) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    parent_category_id INTEGER REFERENCES tenant_inventory_categories(category_id) ON DELETE SET NULL,
+    display_order INTEGER DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    created_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
-    updated_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL
+    created_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL
+);
+```
+
+### 6.2 Inventory Items
+```sql
+CREATE TABLE tenant_inventory_items (
+    item_id VARCHAR(50) PRIMARY KEY,
+    tenant_id VARCHAR(50) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    category_id VARCHAR(50) REFERENCES tenant_inventory_categories(category_id) ON DELETE SET NULL,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    sku VARCHAR(50) UNIQUE,
+    unit VARCHAR(50) NOT NULL,
+    cost_price DECIMAL(10,2) NOT NULL,
+    selling_price DECIMAL(10,2),
+    supplier_id INTEGER,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL
+);
+```
+
+### 6.3 Inventory Stock
+```sql
+CREATE TABLE tenant_inventory_stock (
+    stock_id VARCHAR(50) PRIMARY KEY,
+    tenant_id VARCHAR(50) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    item_id VARCHAR(50) REFERENCES tenant_inventory_items(item_id) ON DELETE CASCADE,
+    location_id INTEGER,
+    quantity DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+    reorder_threshold DECIMAL(15,2) DEFAULT 0.00,
+    last_stock_take_date TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+## 7. Orders
+
+### 7.1 Order Statuses
+```sql
+CREATE TABLE order_statuses (
+    status_id VARCHAR(50) PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE,
+    description TEXT,
+    is_terminal BOOLEAN DEFAULT FALSE
+);
+```
+
+### 7.2 Orders
+```sql
+CREATE TABLE tenant_orders (
+    order_id VARCHAR(50) PRIMARY KEY,
+    tenant_id VARCHAR(50) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    user_id VARCHAR(50) REFERENCES users(user_id) ON DELETE SET NULL,
+    restaurant_id VARCHAR(50) REFERENCES tenant_restaurants(restaurant_id) ON DELETE CASCADE,
+    status_id VARCHAR(50) REFERENCES order_statuses(status_id) ON DELETE SET NULL,
+    order_number VARCHAR(50) UNIQUE NOT NULL,
+    total_amount DECIMAL(12,2) NOT NULL,
+    tax_amount DECIMAL(10,2) DEFAULT 0.00,
+    delivery_fee DECIMAL(10,2) DEFAULT 0.00,
+    discount_amount DECIMAL(10,2) DEFAULT 0.00,
+    subtotal DECIMAL(12,2) NOT NULL,
+    payment_method VARCHAR(50),
+    payment_status VARCHAR(20) DEFAULT 'pending',
+    tracking_number VARCHAR(100),
+    delivery_address_line1 VARCHAR(255) NOT NULL,
+    delivery_address_line2 VARCHAR(255),
+    delivery_city VARCHAR(100) NOT NULL,
+    delivery_state VARCHAR(100) NOT NULL,
+    delivery_postal_code VARCHAR(20) NOT NULL,
+    delivery_country VARCHAR(100) NOT NULL,
+    delivery_instructions TEXT,
+    pickup_location VARCHAR(255),
+    estimated_delivery_time TIMESTAMP WITH TIME ZONE,
+    actual_delivery_time TIMESTAMP WITH TIME ZONE,
+    notes TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(50) REFERENCES users(user_id) ON DELETE SET NULL,
+    updated_by VARCHAR(50) REFERENCES users(user_id) ON DELETE SET NULL
 );
 ```
 
 ### 7.3 Order Items
 ```sql
 CREATE TABLE tenant_order_items (
-    order_item_id SERIAL PRIMARY KEY,
-    order_id INTEGER REFERENCES tenant_orders(order_id) ON DELETE CASCADE,
-    menu_item_id INTEGER REFERENCES tenant_menu_items(menu_item_id) ON DELETE SET NULL,
+    order_item_id VARCHAR(50) PRIMARY KEY,
+    order_id VARCHAR(50) REFERENCES tenant_orders(order_id) ON DELETE CASCADE,
+    menu_item_id VARCHAR(50) REFERENCES tenant_menu_items(menu_item_id) ON DELETE SET NULL,
     quantity INTEGER NOT NULL DEFAULT 1,
     unit_price DECIMAL(10,2) NOT NULL,
     discount_amount DECIMAL(10,2) DEFAULT 0.00,
@@ -295,7 +446,7 @@ CREATE TABLE tenant_order_items (
 ### 8.1 Payment Methods
 ```sql
 CREATE TABLE payment_methods (
-    method_id SERIAL PRIMARY KEY,
+    method_id VARCHAR(50) PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE,
     description TEXT
 );
@@ -304,10 +455,10 @@ CREATE TABLE payment_methods (
 ### 8.2 Payments
 ```sql
 CREATE TABLE tenant_payments (
-    payment_id SERIAL PRIMARY KEY,
-    tenant_id INTEGER REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-    order_id INTEGER REFERENCES tenant_orders(order_id) ON DELETE SET NULL,
-    payment_method_id INTEGER REFERENCES payment_methods(method_id) ON DELETE SET NULL,
+    payment_id VARCHAR(50) PRIMARY KEY,
+    tenant_id VARCHAR(50) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    order_id VARCHAR(50) REFERENCES tenant_orders(order_id) ON DELETE SET NULL,
+    payment_method_id VARCHAR(50) REFERENCES payment_methods(method_id) ON DELETE SET NULL,
     amount DECIMAL(12,2) NOT NULL,
     currency VARCHAR(3) DEFAULT 'USD',
     transaction_id VARCHAR(100),
@@ -324,11 +475,11 @@ CREATE TABLE tenant_payments (
 ### 9.1 Reviews
 ```sql
 CREATE TABLE tenant_reviews (
-    review_id SERIAL PRIMARY KEY,
-    tenant_id INTEGER REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-    user_id INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
-    restaurant_id INTEGER REFERENCES tenant_restaurants(restaurant_id) ON DELETE CASCADE,
-    menu_item_id INTEGER REFERENCES tenant_menu_items(menu_item_id) ON DELETE SET NULL,
+    review_id VARCHAR(50) PRIMARY KEY,
+    tenant_id VARCHAR(50) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    user_id VARCHAR(50) REFERENCES users(user_id) ON DELETE CASCADE,
+    restaurant_id VARCHAR(50) REFERENCES tenant_restaurants(restaurant_id) ON DELETE CASCADE,
+    menu_item_id VARCHAR(50) REFERENCES tenant_menu_items(menu_item_id) ON DELETE SET NULL,
     rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
     title VARCHAR(255),
     review_text TEXT,
@@ -497,24 +648,24 @@ ORDER BY
 ### 13.1 Tenant-Specific Functions
 ```sql
 -- Function to get current tenant ID
-CREATE OR REPLACE FUNCTION get_current_tenant_id() RETURNS INTEGER AS $$
+CREATE OR REPLACE FUNCTION get_current_tenant_id() RETURNS VARCHAR(50) AS $$
 DECLARE
-    tenant_id INTEGER;
+    tenant_id VARCHAR(50);
 BEGIN
     -- In a real application, this would be set via middleware or connection parameters
-    -- For this schema, we'll assume it's passed via a session variable
-    SELECT value INTO tenant_id FROM pg_settings WHERE name = 'current_tenant_id';
+    -- For this schema, we'll assume it's passed via a session variable (session setting)
+    tenant_id := current_setting('current_tenant_id', true);
     RETURN tenant_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to get current user ID
-CREATE OR REPLACE FUNCTION get_current_user_id() RETURNS INTEGER AS $$
+CREATE OR REPLACE FUNCTION get_current_user_id() RETURNS VARCHAR(50) AS $$
 DECLARE
-    user_id INTEGER;
+    user_id VARCHAR(50);
 BEGIN
     -- In a real application, this would be set via authentication middleware
-    SELECT value INTO user_id FROM pg_settings WHERE name = 'current_user_id';
+    user_id := current_setting('current_user_id', true);
     RETURN user_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -522,9 +673,9 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- Create a view that includes tenant context
 CREATE OR REPLACE VIEW current_tenant_context AS
 SELECT
-    (SELECT value FROM pg_settings WHERE name = 'current_tenant_id') AS tenant_id,
-    (SELECT value FROM pg_settings WHERE name = 'current_user_id') AS user_id,
-    (SELECT name FROM tenants WHERE tenant_id = (SELECT value FROM pg_settings WHERE name = 'current_tenant_id')) AS tenant_name;
+    current_setting('current_tenant_id', true) AS tenant_id,
+    current_setting('current_user_id', true) AS user_id,
+    (SELECT name FROM tenants WHERE tenant_id = current_setting('current_tenant_id', true)) AS tenant_name;
 ```
 
 ## 14. Security
@@ -545,9 +696,9 @@ ALTER TABLE tenant_payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_reviews ENABLE ROW LEVEL SECURITY;
 
 -- Create policies for row-level security
-CREATE POLICY tenant_restaurants_policy ON tenant_restaurants FOR ALL USING (tenant_id = get_current_tenant_id());
-CREATE POLICY tenant_menu_items_policy ON tenant_menu_items FOR ALL USING (tenant_id = get_current_tenant_id());
-CREATE POLICY tenant_orders_policy ON tenant_orders FOR ALL USING (tenant_id = get_current_tenant_id());
+CREATE POLICY tenant_restaurants_policy ON tenant_restaurants FOR ALL USING (tenant_id = get_current_tenant_id()::VARCHAR(50));
+CREATE POLICY tenant_menu_items_policy ON tenant_menu_items FOR ALL USING (tenant_id = get_current_tenant_id()::VARCHAR(50));
+CREATE POLICY tenant_orders_policy ON tenant_orders FOR ALL USING (tenant_id = get_current_tenant_id()::VARCHAR(50));
 ```
 
 ### 14.2 Default Security Roles
@@ -578,26 +729,26 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO tenant_user;
 ### 15.1 Initial Setup Script
 ```sql
 -- Create the database
-CREATE DATABASE food_menu_system;
+CREATE DATABASE homecooked;
 
 -- Connect to the database and run the schema creation scripts
-\\conn food_menu_system
+\\conn homecooked
 \\i database_schema.sql
 ```
 
 ### 15.2 Sample Data Insertion
 ```sql
--- Insert sample tenants
-INSERT INTO tenants (name, domain, status) VALUES
-('Restaurant Chain 1', 'restaurant1.example.com', 'active'),
-('Restaurant Chain 2', 'restaurant2.example.com', 'active'),
-('Food Delivery Service', 'foodservice.example.com', 'active');
+-- Insert sample tenants (use string IDs)
+INSERT INTO tenants (tenant_id, name, domain, status) VALUES
+('tenant_1', 'Restaurant Chain 1', 'restaurant1.example.com', 'active'),
+('tenant_2', 'Restaurant Chain 2', 'restaurant2.example.com', 'active'),
+('tenant_3', 'Food Delivery Service', 'foodservice.example.com', 'active');
 
--- Insert sample configurations
+-- Insert sample configurations (tenant IDs as strings)
 INSERT INTO tenant_configurations (tenant_id, default_currency, default_language, tax_rate, delivery_fee) VALUES
-(1, 'USD', 'en', 0.08, 2.99),
-(2, 'EUR', 'fr', 0.20, 3.99),
-(3, 'USD', 'es', 0.07, 1.99);
+('tenant_1', 'USD', 'en', 0.08, 2.99),
+('tenant_2', 'EUR', 'fr', 0.20, 3.99),
+('tenant_3', 'USD', 'es', 0.07, 1.99);
 ```
 
 ## 16. Maintenance Procedures
@@ -674,20 +825,20 @@ $$ LANGUAGE plpgsql;
 
 ### 19.1 Sample Queries
 ```sql
--- Get all active restaurants for a tenant
-SELECT * FROM tenant_restaurants WHERE tenant_id = 1 AND is_active = TRUE;
+-- Get all active restaurants for a tenant (tenant IDs are strings)
+SELECT * FROM tenant_restaurants WHERE tenant_id = 'tenant_1' AND is_active = TRUE;
 
--- Get menu items for a specific restaurant
-SELECT * FROM tenant_menu_items WHERE restaurant_id = 123 AND is_active = TRUE;
+-- Get menu items for a specific restaurant (string IDs)
+SELECT * FROM tenant_menu_items WHERE restaurant_id = 'restaurant_123' AND is_active = TRUE;
 
--- Get order history for a user
-SELECT * FROM tenant_orders WHERE user_id = 456 ORDER BY created_at DESC;
+-- Get order history for a user (string user IDs)
+SELECT * FROM tenant_orders WHERE user_id = 'user_456' ORDER BY created_at DESC;
 
--- Get restaurant ratings
+-- Get restaurant ratings (tenant ID as string)
 SELECT r.restaurant_id, r.name, AVG(rr.rating) AS avg_rating
 FROM tenant_restaurants r
 JOIN tenant_reviews rr ON r.restaurant_id = rr.restaurant_id
-WHERE r.tenant_id = 1
+WHERE r.tenant_id = 'tenant_1'
 GROUP BY r.restaurant_id, r.name;
 ```
 

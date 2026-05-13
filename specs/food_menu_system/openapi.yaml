@@ -822,6 +822,42 @@ components:
           type: string
           format: date-time
           example: 2026-05-17T23:59:59Z
+    WeeklyMenuResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+        menuItems:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              foodItemId:
+                type: string
+                format: uuid
+              size:
+                type: string
+              price:
+                type: number
+              sequence:
+                type: integer
     CateringMenuRequest:
       type: object
       required:

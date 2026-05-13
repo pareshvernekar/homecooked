@@ -10,7 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	cors "github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
 	"github.com/jmoiron/sqlx"
@@ -28,7 +27,7 @@ type Server struct {
 
 // NewServer creates a new server instance with proper initialization
 func NewServer(db *sqlx.DB, logger *slog.Logger) *Server {
-	router := setupGinEngine()
+	router := setupGinEngine(logger)
 
 	return &Server{
 		Router: router,
@@ -59,6 +58,7 @@ func (s *Server) Run(ctx context.Context) error {
 	go func() {
 		if err := server.ListenAndServe(); err != http.ErrServerClosed {
 			s.Logger.Error("Server failed to start", "error", err)
+			return
 		}
 	}()
 
@@ -80,13 +80,11 @@ func (s *Server) Run(ctx context.Context) error {
 
 // Health check endpoint
 func HealthCheck() bool {
-	// Implementation for health checking
 	return true
 }
 
 // GetVersion returns the current application version
 func GetVersion() string {
-	// Return the current version
 	return "1.0.0"
 }
 
@@ -107,86 +105,73 @@ func (s *Server) gracefulShutdown(server *http.Server) error {
 	return nil
 }
 
-// SetupRoutes configures all API routes
-func SetupRoutes(router *gin.Engine) {
+// SetupRoutes configures all API routes with dependency injection
+func SetupRoutes(router *gin.Engine, db *sqlx.DB, logger *slog.Logger, foodItemHandler *handlers.FoodItemHandler) {
 	api := router.Group("/api/v1")
 
 	v1 := api.Group("/")
 
-	// Food Items Routes
+	// Food Items Routes - Using Dependency Injection
 	foodItems := v1.Group("/food-items")
-	foodItems.GET("", handlers.NewFoodItemHandler(nil, nil).GetFoodItems)
-	foodItems.POST("", handlers.NewFoodItemHandler(nil, nil).CreateFoodItem)
-	foodItems.PUT("/:id", handlers.NewFoodItemHandler(nil, nil).UpdateFoodItem)
-	foodItems.DELETE("/:id", handlers.NewFoodItemHandler(nil, nil).DeleteFoodItem)
+	foodItems.GET("", foodItemHandler.GetFoodItems)
+	foodItems.POST("", foodItemHandler.CreateFoodItem)
+	foodItems.PUT("/:id", foodItemHandler.UpdateFoodItem)
+	foodItems.DELETE("/:id", foodItemHandler.DeleteFoodItem)
 
 	// Categories Routes (placeholder)
 	categories := v1.Group("/categories")
 	categories.POST("", func(c *gin.Context) {
-		// Category creation logic
 		c.Status(201)
 	})
 
 	// Weekly Menus Routes (placeholder)
 	weeklyMenus := v1.Group("/weekly-menus")
 	weeklyMenus.GET("", func(c *gin.Context) {
-		// Get weekly menus
 		c.Status(200)
 	})
 
 	// Catering Menus Routes (placeholder)
 	cateringMenus := v1.Group("/catering-menus")
 	cateringMenus.POST("", func(c *gin.Context) {
-		// Create catering menu
 		c.Status(201)
 	})
 
 	cateringMenus.GET("", func(c *gin.Context) {
-		// Get catering menus
 		c.Status(200)
 	})
 
 	// Menu Items within Menu (placeholder)
 	v1.GET("/menus/:menuType/:menuId/menu-items", func(c *gin.Context) {
-		// List menu items within a specific menu
 		c.Status(200)
 	})
 
 	// Orders Routes (placeholder)
 	v1.POST("/orders", func(c *gin.Context) {
-		// Create order
 		c.Status(201)
 	})
 
 	v1.GET("/orders", func(c *gin.Context) {
-		// List orders
 		c.Status(200)
 	})
 
 	// Notifications Routes (placeholder)
 	v1.POST("/notifications", func(c *gin.Context) {
-		// Create notification
 		c.Status(201)
 	})
 
 	v1.GET("/notifications/:notificationId", func(c *gin.Context) {
-		// Get notification by ID
 		c.Status(200)
 	})
 
 	v1.DELETE("/notifications/:notificationId", func(c *gin.Context) {
-		// Delete notification
 		c.Status(204)
 	})
 }
 
 // Helper function to initialize the Gin engine with global middleware and configuration
 func setupGinEngine(logger *slog.Logger) *gin.Engine {
-
-	// Create a new Gin engine with JSON logger
 	gin.SetMode(gin.ReleaseMode)
 
-	// Create a new Gin engine
 	router := gin.New()
 
 	// Security middleware
@@ -194,18 +179,6 @@ func setupGinEngine(logger *slog.Logger) *gin.Engine {
 
 	// Apply custom logger with JSON formatting using slog
 	router.Use(jsonLogger(logger))
-	// Enable CORS (Cross-Origin Resource Sharing)
-	// Enable CORS (Cross-Origin Resource Sharing) with proper configuration
-	router.Use(cors.Options{
-		AllowAllOrigins:  []string{"*"}, // Allow all origins
-		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Tenant-ID"},
-		AllowCredentials: true,
-		MaxAge:           12 * time.Hour, // Allow browsers to cache CORS preflight responses
-	}.Handler())
-
-	// Serve static assets if needed (optional)
-	// router.Static("/static", "./public/static")
 
 	return router
 }
@@ -218,7 +191,6 @@ func jsonLogger(slogger *slog.Logger) gin.HandlerFunc {
 		// Extract tenant ID from context if available
 		tenantID := c.GetString(middleware.TenantIDKey)
 
-		// Log request start with basic info
 		c.Next()
 
 		// Log response with timing and status
