@@ -2,28 +2,37 @@ package main
 
 import (
 	"context"
-	"log"
-	"log/slog"
+	"fmt"
 	"os"
 	"os/signal"
 	"strconv"
 	"syscall"
 
+	"github.com/gin-gonic/gin"
+
+	cache "github.com/pareshvernekar/homecooked/internal/cache"
 	"github.com/pareshvernekar/homecooked/internal/config"
 	"github.com/pareshvernekar/homecooked/internal/database"
 	"github.com/pareshvernekar/homecooked/internal/handlers"
-	"github.com/pareshvernekar/homecooked/internal/logger"
+	logger "github.com/pareshvernekar/homecooked/internal/logger"
 	"github.com/pareshvernekar/homecooked/internal/repository"
 	"github.com/pareshvernekar/homecooked/internal/server"
 )
 
 func main() {
-	// Initialize the configuration (Viper)
+	// Initialize application configuration (Viper) - loads from config.yaml
 	config.Init()
-	err := config.Read() // Read the configuration file
+	err := config.Read() // Read the configuration file and bind to Viper
 	if err != nil {
-		logger.Logger.Error("Failed to read configuration", slog.Any("error", err))
+		fmt.Printf("Error reading config: %v\n", err)
 		os.Exit(1)
+	}
+
+	// Initialize cache client using Viper config from main app
+	// No YAML file needed for cache - all config comes through Viper
+	cacheClient, err := cache.NewCacheClient(cache.LoadConfig(config.Config))
+	if err != nil {
+		fmt.Printf("Warning: failed to initialize cache: %v\n", err)
 	}
 
 	// Get tenant ID from environment or use default
@@ -34,31 +43,36 @@ func main() {
 		}
 	}
 
+	// Initialize the logger
+	loggerInstance := logger.NewLogger()
+
 	// Initialize the database connection with tenant isolation context
-	if err := database.InitDB(tenantID); err != nil {
-		logger.Logger.Error("Failed to initialize database", slog.Any("error", err))
+	if err := database.InitDB(tenantID, loggerInstance); err != nil {
+		fmt.Println("Failed to initialize database:", err)
 		os.Exit(1)
 	}
 
 	// Ensure DB connection exists
-	db := database.GetDB()
+	db := database.GetDB(loggerInstance)
 	if db == nil {
-		logger.Logger.Error("Database connection is nil")
+		fmt.Println("Database connection is nil")
 		os.Exit(1)
 	}
 
 	// Create FoodItemRepository using dependency injection
-	// Repository gets access to database through constructor, not direct import
 	foodItemRepo := repository.NewFoodItemRepository(db, tenantID)
 
-	// Create handler with repository via dependency injection
-	foodItemHandler := handlers.NewFoodItemHandler(foodItemRepo)
+	// Create handler with repository via dependency injection - separate logger for each handler
+	loggerInstance2 := logger.NewLogger()
+	foodItemHandler := handlers.NewFoodItemHandler(foodItemRepo, loggerInstance2, cacheClient)
 
-	// Create server instance with repository injection
-	srv := server.NewServer(db, logger.Logger)
+	// Create server instance with repository injection and cache dependency
+	srv := server.NewServer(db, loggerInstance, cacheClient)
 
 	// Setup routes with handler that has repository dependency
-	server.SetupRoutes(srv.Router, db, logger.Logger, foodItemHandler)
+	router := srv.Router
+	gin.SetMode(gin.ReleaseMode)
+	server.SetupRoutes(router, db, loggerInstance, foodItemHandler, cacheClient)
 
 	// Create application context with cancellation
 	ctx, cancel := context.WithCancel(context.Background())
@@ -69,16 +83,16 @@ func main() {
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 		<-sigChan
-		log.Println("⏳ Received shutdown signal...")
+		fmt.Println("Received shutdown signal...")
 		cancel()
 	}()
 
 	// Start the server (in a goroutine)
 	if err := srv.Run(ctx); err != nil {
-		log.Fatalf("❌ Server error: %v", err)
+		fmt.Printf("Server error: %v\n", err)
 		os.Exit(1)
 	}
 
-	log.Println("✅ Service running successfully")
+	fmt.Println("Service running successfully")
 	select {} // Keep main alive until context is cancelled
 }

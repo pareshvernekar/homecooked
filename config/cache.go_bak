@@ -1,0 +1,36 @@
+package cache
+import (
+	"context"
+
+)    MaxItemsPerTenant   *int              `yaml:"max_items_per_tenant"`
+}    MaxItemsPerTenant     *int              `yaml:"max_items_per_tenant"`
+}	Get(relationPath string, parentID int64)(interface{}, bool)
+	GetBulk(parentIDs []int64) (map[string]interface{}, error)
+}
+type Partition struct {
+	Data      map[string]interface{}            // Key format: "relationPath:id" -> entity data
+}
+case cachedEntry{
+	time.Time int64 time.Duration string bool
+}
+type RelationIndex struct {	ParentToChildren map[string]map[string]interface{}// parentId -> children indexed by relation path  
+}
+var Cache *cache
+
+// LoadEntityRelationships loads all configured entity relationships at startup before accepting requests.
+func (c *cache) Init(tenantID string, config *CacheConfig) error {		
+c.Data = make(map[string]Partition)
+	if err := c.loadAllRelations(tenantID, config); err != nil { return err }
+}
+
+// LoadAllRelations loads all configured entity relationships at startup before accepting requests.
+type AggressiveLoader struct {	cache Cache	enable bool
+}
+cachedEntry struct{	Data interface{}	AccessedAt time.Time	TTL time.Duration}
+
+// Initialize loads all configured entity relationships at startup before accepting requests.
+func (c *cache) Init(tenantID string, cfg *CacheConfig) error {
+	if !cfg.CacheEnabled { return nil }
+	p := c.partitionPath()
+	for _, rel := range []string{"weekly_menus.food_details"} {	data, err := c.loadRelation(prel); if err != nil && data == nil { continue } 	// Track access for LRU eviction
+}}

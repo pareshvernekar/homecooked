@@ -82,7 +82,7 @@ This document outlines the implementation tasks for the Food Menu System, a REST
   - **Code Reference**: Should implement tables: tenant, user, food_item, category, weekly_menu, catering_menu, menu_item, order, order_item, notification
   - **Test Reference**: Should include SQL schema tests
   - **Spec Reference**: [spec.md](spec.md#database-schema)
-  - Implement tenants, food_items, categories, menus, menu_items, orders, order_items, notifications tables
+  - Implement tenants, food_item, categories, menus, menu_items, orders, order_items, notifications tables
   - Add tenant_id column to all tables as foreign key
 
 - [ ] T012 Set up row-level security policies

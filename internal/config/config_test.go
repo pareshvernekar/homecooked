@@ -38,9 +38,9 @@ func TestRead(t *testing.T) {
 // checkLoadedValues checks if the loaded values from a YAML file are correct
 func checkLoadedValues(t *testing.T) {
 	expectedLoadedValues := map[string]interface{}{
-		"APP.DEBUG":       false,
+		"APP.DEBUG":       true,
 		"SERVER.PORT":     8080,
-		"DATABASE.DRIVER": "mysql",
+		"DATABASE.DRIVER": "postgres",
 		"DATABASE.HOST":   "localhost",
 	}
 

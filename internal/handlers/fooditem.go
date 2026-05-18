@@ -8,6 +8,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	cache "github.com/pareshvernekar/homecooked/internal/cache"
+	logger "github.com/pareshvernekar/homecooked/internal/logger"
 	"github.com/pareshvernekar/homecooked/internal/middleware"
 	"github.com/pareshvernekar/homecooked/internal/models"
 	"github.com/pareshvernekar/homecooked/internal/repository"
@@ -17,17 +19,21 @@ import (
 
 // FoodItemHandler handles food item related operations
 type FoodItemHandler struct {
-	Repo repository.FoodItemRepository
+	Repo        repository.FoodItemRepository
+	Logger      *logger.Logger
+	CacheClient cache.Client
 }
 
 // NewFoodItemHandler creates a new instance of FoodItemHandler with dependency injection
-func NewFoodItemHandler(repo repository.FoodItemRepository) *FoodItemHandler {
+func NewFoodItemHandler(repo repository.FoodItemRepository, l *logger.Logger, c cache.Client) *FoodItemHandler {
 	return &FoodItemHandler{
-		Repo: repo,
+		Repo:        repo,
+		Logger:      l,
+		CacheClient: c,
 	}
 }
 
-// GetFoodItems paginates and retrieves food items for the current tenant
+// GetFoodItems paginates and retrieves food items for the current tenant with caching support
 func (h *FoodItemHandler) GetFoodItems(c *gin.Context) {
 	page := int64(0)
 	limit := int64(20)
@@ -48,28 +54,81 @@ func (h *FoodItemHandler) GetFoodItems(c *gin.Context) {
 
 	tenantID := c.GetString(middleware.TenantIDKey)
 
-	foodItems, total, err := h.Repo.ListByTenant(tenantID, int(page), int(limit))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, views.ErrorResponse{Success: false, ErrorCode: "DATABASE_ERROR", Message: "Failed to retrieve food items", Timestamp: time.Now().UTC()})
-		return
+	ctx := c.Request.Context()
+	h.Logger.Info(ctx, "GetFoodItems: Fetching food items for tenant", "tenant_id", tenantID)
+
+	var foodItems []models.FoodItem
+
+	cacheUsed := false
+
+	// Attempt to load from cache if cache client is available
+	if h.CacheClient != nil {
+		key := fmt.Sprintf("food_catalog.food_details:%s", tenantID)
+		val, err := h.CacheClient.Get(ctx, key)
+		if err == nil && val != nil {
+			cacheUsed = true
+			if sliceVal, ok := val.([]models.FoodItem); ok {
+				foodItems = sliceVal
+
+				h.Logger.Info(ctx, "GetFoodItems: Retrieved from cache", "count", len(foodItems))
+				return
+			} else {
+				h.Logger.Debug(ctx, "GetFoodItems: Cache miss (not a []models.FoodItem) - loading from database")
+			}
+		} else {
+			h.Logger.Debug(ctx, "GetFoodItems: Cache error - loading from database", "error", err)
+			cacheUsed = false
+		}
 	}
-	fmt.Println("Total food items for tenant:", total)
+
+	// Cache miss or no cache - load from database
+	if !cacheUsed || len(foodItems) == 0 {
+		foodItems, total, err := h.Repo.ListByTenant(tenantID, int(page), int(limit))
+		if err != nil {
+			h.Logger.Error(ctx, "Failed to retrieve food items", "error", err)
+			c.JSON(http.StatusInternalServerError, views.ErrorResponse{Success: false, ErrorCode: "DATABASE_ERROR", Message: "Failed to retrieve food items", Timestamp: time.Now().UTC()})
+			return
+		}
+
+		h.Logger.Info(ctx, "GetFoodItems: Successfully retrieved from database", "count", len(foodItems), "total", total)
+
+		// Update cache with new data if available
+		if h.CacheClient != nil {
+			key := fmt.Sprintf("food_catalog.food_details:%s", tenantID)
+			err := h.CacheClient.Set(ctx, key, foodItems, cache.WithTTL(30*time.Minute))
+			if err != nil {
+				h.Logger.Error(ctx, "Failed to update cache", "error", err)
+			}
+		}
+		h.Logger.Info(ctx, "GetFoodItems: Retrieved from database (cache was unavailable)")
+	}
+
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Food items retrieved successfully", "data": foodItems})
 }
 
 // CreateFoodItem creates a new food item for the current tenant
 func (h *FoodItemHandler) CreateFoodItem(c *gin.Context) {
+	startTime := time.Now()
+	h.Logger.Info(c.Request.Context(), "CreateFoodItem: Starting food item creation flow")
+
 	var createRequest models.FoodItemCreateRequest
 	if err := c.ShouldBindJSON(&createRequest); err != nil {
+		duration := time.Since(startTime).Milliseconds()
+		h.Logger.Error(c.Request.Context(), "CreateFoodItem: Failed to parse request JSON", "duration_ms", duration, "error", err.Error())
 		c.JSON(http.StatusBadRequest, views.ErrorResponse{Success: false, ErrorCode: "INVALID_INPUT", Message: "Invalid request body", Timestamp: time.Now().UTC(), Detail: err.Error()})
 		return
 	}
 
-	// Use custom validation to validate enum values like AvailabilityStatus
+	h.Logger.Info(c.Request.Context(), "CreateFoodItem: Request JSON parsed successfully", "name", createRequest.Name, "price", createRequest.Price)
+
 	if err := validation.ValidateFoodItemCreate(createRequest); err != nil {
+		duration := time.Since(startTime).Milliseconds()
+		h.Logger.Error(c.Request.Context(), "CreateFoodItem: Validation failed", "duration_ms", duration, "validation_error", err.Error())
 		c.JSON(http.StatusBadRequest, views.ErrorResponse{Success: false, ErrorCode: "VALIDATION_ERROR", Message: "Invalid request body", Timestamp: time.Now().UTC(), Detail: err.Error()})
 		return
 	}
+
+	h.Logger.Info(c.Request.Context(), "CreateFoodItem: Validation passed", "name", createRequest.Name, "category", createRequest.Category)
 
 	tenantID := c.GetString(middleware.TenantIDKey)
 	createdTime := time.Now().UTC()
@@ -85,10 +144,17 @@ func (h *FoodItemHandler) CreateFoodItem(c *gin.Context) {
 		UpdatedAt:   &createdTime,
 	}
 
+	h.Logger.Info(c.Request.Context(), "CreateFoodItem: Generated UUID for food item", "uuid", foodItem.ID)
+
 	if err := h.Repo.Create(&foodItem); err != nil {
+		duration := time.Since(startTime).Milliseconds()
+		h.Logger.Error(c.Request.Context(), "CreateFoodItem: Failed to create food item in database", "duration_ms", duration, "tenant_id", tenantID, "error", err.Error())
 		c.JSON(http.StatusInternalServerError, views.ErrorResponse{Success: false, ErrorCode: "DATABASE_ERROR", Message: "Failed to create food item", Timestamp: time.Now().UTC()})
 		return
 	}
+
+	duration := time.Since(startTime).Milliseconds()
+	h.Logger.Info(c.Request.Context(), "CreateFoodItem: Food item created successfully", "duration_ms", duration, "food_item_id", foodItem.ID, "tenant_id", tenantID)
 
 	c.JSON(http.StatusCreated, gin.H{"success": true, "message": "Food item created successfully"})
 }
@@ -101,36 +167,45 @@ func (h *FoodItemHandler) UpdateFoodItem(c *gin.Context) {
 		return
 	}
 
-	existingFoodItem, err := h.Repo.GetByID(id)
+	h.Logger.Debug(c.Request.Context(), "UpdateFoodItem: Getting food item by ID", "id", id)
+
+	foodItem, err := h.Repo.GetByID(id)
 	if err != nil {
+		h.Logger.Error(c.Request.Context(), "UpdateFoodItem: Food item not found", "id", id, "error", err)
 		c.JSON(http.StatusNotFound, views.ErrorResponse{Success: false, ErrorCode: "NOT_FOUND", Message: "Food item not found", Timestamp: time.Now().UTC()})
 		return
 	}
 
 	var updateRequest models.FoodItemUpdateRequest
 	if err := c.ShouldBindJSON(&updateRequest); err != nil {
+		h.Logger.Error(c.Request.Context(), "UpdateFoodItem: Failed to parse update request", "error", err)
 		c.JSON(http.StatusBadRequest, views.ErrorResponse{Success: false, ErrorCode: "INVALID_INPUT", Message: "Invalid request body", Timestamp: time.Now().UTC(), Detail: err.Error()})
 		return
 	}
 
 	if err := validation.ValidateFoodItemUpdate(updateRequest); err != nil {
+		h.Logger.Error(c.Request.Context(), "UpdateFoodItem: Validation failed for update", "error", err)
 		c.JSON(http.StatusBadRequest, views.ErrorResponse{Success: false, ErrorCode: "VALIDATION_ERROR", Message: "Invalid request body", Timestamp: time.Now().UTC(), Detail: err.Error()})
 		return
 	}
 
-	existingFoodItem.Name = updateRequest.Name
-	existingFoodItem.Description = updateRequest.Description
-	existingFoodItem.Price = updateRequest.Price
-	existingFoodItem.Category = updateRequest.Category
-	existingFoodItem.AvailabilityStatus = updateRequest.AvailabilityStatus
-	updatedTime := time.Now().UTC()
-	existingFoodItem.UpdatedAt = &updatedTime
+	ctx := c.Request.Context()
 
-	if err := h.Repo.Update(existingFoodItem); err != nil {
+	foodItem.Name = updateRequest.Name
+	foodItem.Description = updateRequest.Description
+	foodItem.Price = updateRequest.Price
+	foodItem.Category = updateRequest.Category
+	foodItem.AvailabilityStatus = updateRequest.AvailabilityStatus
+	updatedTime := time.Now().UTC()
+	foodItem.UpdatedAt = &updatedTime
+
+	if err := h.Repo.Update(foodItem); err != nil {
+		h.Logger.Error(ctx, "UpdateFoodItem: Failed to update food item", "error", err)
 		c.JSON(http.StatusInternalServerError, views.ErrorResponse{Success: false, ErrorCode: "DATABASE_ERROR", Message: "Failed to update food item", Timestamp: time.Now().UTC()})
 		return
 	}
 
+	h.Logger.Info(ctx, "UpdateFoodItem: Food item updated successfully", "id", id)
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Food item updated successfully"})
 }
 
@@ -142,16 +217,28 @@ func (h *FoodItemHandler) DeleteFoodItem(c *gin.Context) {
 		return
 	}
 
-	existingFoodItem, err := h.Repo.GetByID(id)
+	ctx := c.Request.Context()
+	h.Logger.Debug(ctx, "DeleteFoodItem: Getting food item by ID", "id", id)
+
+	foodItem, err := h.Repo.GetByID(id)
 	if err != nil {
+		h.Logger.Error(ctx, "DeleteFoodItem: Food item not found", "id", id, "error", err)
 		c.JSON(http.StatusNotFound, views.ErrorResponse{Success: false, ErrorCode: "NOT_FOUND", Message: "Food item not found", Timestamp: time.Now().UTC()})
 		return
 	}
 
-	if err := h.Repo.Delete(existingFoodItem.ID); err != nil {
+	if foodItem.TenantID != c.GetString(middleware.TenantIDKey) {
+		h.Logger.Warn(ctx, "DeleteFoodItem: Attempted to delete food item outside tenant scope")
+		c.JSON(http.StatusForbidden, views.ErrorResponse{Success: false, ErrorCode: "FORBIDDEN", Message: "Cannot delete food item outside tenant scope", Timestamp: time.Now().UTC()})
+		return
+	}
+
+	if err := h.Repo.Delete(foodItem.ID); err != nil {
+		h.Logger.Error(ctx, "DeleteFoodItem: Failed to delete food item", "error", err)
 		c.JSON(http.StatusInternalServerError, views.ErrorResponse{Success: false, ErrorCode: "DATABASE_ERROR", Message: "Failed to delete food item", Timestamp: time.Now().UTC()})
 		return
 	}
 
-	c.Status(http.StatusNoContent)
+	h.Logger.Info(ctx, "DeleteFoodItem: Food item deleted successfully", "id", id)
+	c.JSON(http.StatusNoContent, nil)
 }

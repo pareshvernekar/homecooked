@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq" // PostgreSQL driver
 	"github.com/pareshvernekar/homecooked/internal/config"
-	"github.com/pareshvernekar/homecooked/internal/logger"
+	logger "github.com/pareshvernekar/homecooked/internal/logger"
 )
 
 var DB *sqlx.DB
@@ -23,7 +25,7 @@ const (
 	defaultConnMaxLifetime = 5 * time.Minute
 )
 
-func InitDB(tenantID string) error {
+func InitDB(tenantID string, l *logger.Logger) error {
 	// Retrieve database configuration from Viper instead of os.Getenv
 	host := config.Config.GetString("database.host")
 	port := config.Config.GetInt("database.port")
@@ -31,24 +33,25 @@ func InitDB(tenantID string) error {
 	password := config.Config.GetString("database.password")
 	dbname := config.Config.GetString("database.name")
 	var dbURL string
+
 	// If all empty, try connection string format
 	if host == "" || port == 0 || user == "" {
 		connectionString := os.Getenv("DB_CONNECTION_STRING")
 		if connectionString != "" {
 			dbURL = connectionString
+		} else {
+			return fmt.Errorf("database not configured")
 		}
 	} else {
 		dbURL = fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", host, port, user, password, dbname)
 	}
-	fmt.Println("Connecting to database with URL:", dbURL)
-	// Add connection pool parameters to DSN
-	// Note: These apply to the entire connection pool - all connections will share these settings
-	TenantID = tenantID
 
+	fmt.Println("Connecting to database with URL:", dbURL)
 	var err error
+
 	DB, err = sqlx.Connect("postgres", dbURL)
 	if err != nil {
-		logger.Logger.Error(fmt.Sprintf("Failed to connect to database: %v", err))
+		l.Error(context.Background(), "Failed to connect to database", slog.Any("error", err))
 		return err
 	}
 
@@ -58,63 +61,78 @@ func InitDB(tenantID string) error {
 	DB.SetConnMaxLifetime(defaultConnMaxLifetime)
 
 	// Execute query to set tenant context in session - ensures all queries on this connection use correct RLS policies
-	if err := SetTenantContext(tenantID); err != nil {
-		logger.Logger.Error("Failed to set tenant ID", slog.Any("error", err))
-		dbErr := DB.Close()
-		if dbErr != nil {
-			logger.Logger.Error("Failed to close database after tenant context error", slog.Any("error", dbErr))
-		}
+	if err := SetTenantContext(tenantID, l); err != nil {
+		l.Error(context.Background(), "Failed to set tenant ID", slog.Any("error", err))
 		return err
 	}
 
 	// Ping to ensure connection is healthy and session is set correctly
 	if err := DB.Ping(); err != nil {
-		logger.Logger.Error("Database connection failed", slog.Any("error", err))
-		dbErr := DB.Close()
-		if dbErr != nil {
-			logger.Logger.Error("Failed to close database after tenant context error", slog.Any("error", dbErr))
-		}
+		l.Error(context.Background(), "Database connection failed", slog.Any("error", err))
 		return err
 	}
 
-	// 3. Ensure the connection is closed when the program exits
-	defer func() {
-		if closeErr := DB.Close(); closeErr != nil {
-			logger.Logger.Error("Failed to close DB", slog.Any("error", closeErr))
+	l.Info(context.Background(), "Database connected successfully with tenant isolation", "tenant_id", tenantID)
+
+	// Register signal handler for graceful shutdown
+	// 1. Create the channel
+	errChan := make(chan error)
+
+	go func(ch chan error) {
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+		<-sigChan
+		err := DB.Close()
+		if err != nil {
+			l.Error(context.Background(), "Failed to close DB", slog.Any("error", err))
+			ch <- err
+		} else {
+			l.Info(context.Background(), "Received shutdown signal, closing database connection")
 		}
 
-	}()
-	logger.Logger.Info("Database connected successfully with tenant isolation", "tenant_id", tenantID)
+	}(errChan)
+	if err := <-errChan; err != nil {
+		return fmt.Errorf("error during shutdown: %w", err)
+	}
 	return nil
 }
 
-func SetTenantContext(tenantID string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if _, err := DB.ExecContext(ctx, "SET app.current_tenant_id = '"+tenantID+"'"); err != nil {
-		logger.Logger.Error("Failed to set tenant ID session variable", slog.Any("error", err))
-		return err
+func SetTenantContext(tenantID string, l *logger.Logger) error {
+	if DB != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if _, err := DB.NamedExecContext(ctx, "SET app.current_tenant_id = :tenant_id", map[string]interface{}{"tenant_id": tenantID}); err != nil {
+			l.Error(context.Background(), "Failed to set tenant ID session variable", slog.Any("error", err))
+			return err
+		}
 	}
 	return nil
 }
 
 // Close closes the database connection pool
-func Close() error {
+func Close(l *logger.Logger) error {
 	if DB != nil {
 		defer func() {
 			if closeErr := DB.Close(); closeErr != nil {
-				logger.Logger.Error("Failed to close DB", slog.Any("error", closeErr))
+				l.Error(context.Background(), "Failed to close DB", slog.Any("error", closeErr))
+			} else {
+				l.Info(context.Background(), "Database connection pool closed")
 			}
 		}()
-		logger.Logger.Info("Database connection pool closed")
+		err := DB.Close()
+		if err != nil {
+			l.Error(context.Background(), "Failed to close DB", slog.Any("error", err))
+			return err
+		}
 	}
 	return nil
 }
 
 // GetDB returns the current database connection (with tenant context already set)
-func GetDB() *sqlx.DB {
+func GetDB(l *logger.Logger) *sqlx.DB {
 	if DB == nil {
-		logger.Logger.Error("Database connection not initialized")
+		l.Error(context.Background(), "Database connection not initialized")
 		return nil
 	}
 	return DB
@@ -122,18 +140,18 @@ func GetDB() *sqlx.DB {
 
 // SetTenantID updates the global TenantID for future queries
 // WARNING: This affects all subsequent queries using this connection pool
-func SetTenantID(tenantID string) error {
+func SetTenantID(tenantID string, l *logger.Logger) error {
 	TenantID = tenantID
-	if err := SetTenantContext(tenantID); err != nil {
+	if err := SetTenantContext(tenantID, l); err != nil {
 		return err
 	}
-	logger.Logger.Info("Tenant ID updated", "tenant_id", tenantID)
+	l.Info(context.Background(), "Tenant ID updated", "tenant_id", tenantID)
 	return nil
 }
 
 // UseConnection executes a query with the current tenant context
-func UseConnection(fn func(ctx context.Context, db *sqlx.DB) error) error {
-	db := GetDB()
+func UseConnection(l *logger.Logger, fn func(ctx context.Context, db *sqlx.DB) error) error {
+	db := GetDB(l)
 	if db == nil {
 		return fmt.Errorf("database not initialized")
 	}

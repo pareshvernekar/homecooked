@@ -2,11 +2,14 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	cache "github.com/pareshvernekar/homecooked/internal/cache"
+	logger "github.com/pareshvernekar/homecooked/internal/logger"
 	"github.com/pareshvernekar/homecooked/internal/middleware"
 	"github.com/pareshvernekar/homecooked/internal/models"
 )
@@ -27,9 +30,26 @@ func (m *MockFoodItemRepository) ListByTenant(tenantID string, offset, limit int
 	return []models.FoodItem{{}}, 0, nil
 }
 
+// MockCacheClient is a mock implementation of the CacheClient interface for testing
+type MockCacheClient struct{}
+
+func (mc *MockCacheClient) Get(ctx context.Context, key string) (any, error) {
+	return nil, nil // Default: always miss
+}
+
+func (mc *MockCacheClient) Set(ctx context.Context, key string, value any, options ...cache.SetOption) error {
+	return nil // Default: always succeeds
+}
+
+func (mc *MockCacheClient) Has(key string) bool {
+	return false
+}
+
 func TestNewFoodItemHandler(t *testing.T) {
 	mockRepo := &MockFoodItemRepository{}
-	handler := NewFoodItemHandler(mockRepo)
+
+	l := logger.NewLogger()
+	handler := NewFoodItemHandler(mockRepo, l, &MockCacheClient{})
 
 	if handler == nil {
 		t.Error("Expected NewFoodItemHandler to return a valid handler")
@@ -38,7 +58,8 @@ func TestNewFoodItemHandler(t *testing.T) {
 
 func TestUpdateFoodItem_Success(t *testing.T) {
 	mockRepo := &MockFoodItemRepository{}
-	handler := NewFoodItemHandler(mockRepo)
+	l := logger.NewLogger()
+	handler := NewFoodItemHandler(mockRepo, l, &MockCacheClient{})
 
 	gin.SetMode(gin.TestMode)
 
@@ -55,7 +76,8 @@ func TestUpdateFoodItem_Success(t *testing.T) {
 
 func TestDeleteFoodItem_Success(t *testing.T) {
 	mockRepo := &MockFoodItemRepository{}
-	handler := NewFoodItemHandler(mockRepo)
+	l := logger.NewLogger()
+	handler := NewFoodItemHandler(mockRepo, l, &MockCacheClient{})
 
 	gin.SetMode(gin.TestMode)
 
@@ -70,7 +92,8 @@ func TestDeleteFoodItem_Success(t *testing.T) {
 
 func TestCreateFoodItem_InvalidRequest(t *testing.T) {
 	mockRepo := &MockFoodItemRepository{}
-	handler := NewFoodItemHandler(mockRepo)
+	l := logger.NewLogger()
+	handler := NewFoodItemHandler(mockRepo, l, &MockCacheClient{})
 
 	gin.SetMode(gin.TestMode)
 

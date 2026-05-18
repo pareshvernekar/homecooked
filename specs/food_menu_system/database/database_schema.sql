@@ -126,7 +126,7 @@ CREATE TABLE IF NOT EXISTS tenant_menu_item_images (
 CREATE TABLE IF NOT EXISTS food_category (
     id VARCHAR(50) PRIMARY KEY,
     tenant_id VARCHAR(50) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-    name VARCHAR(100) NOT NULL,
+    name VARCHAR(100) NOT NULL UNIQUE,
     description TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -433,7 +433,27 @@ ON CONFLICT (menu_item_id) DO NOTHING;
 
 -- Spec-aligned categories and items (shared/singular)
 INSERT INTO food_category (id, tenant_id, name, description) VALUES
-('fc_1', 'tenant_1', 'Proteins', 'Protein based items')
+('fc_1', 'tenant_1', 'vegetarian', 'Vegetarian based items')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO food_category (id, tenant_id, name, description) VALUES
+('fc_2', 'tenant_1', 'non-vegetarian', 'Non-vegetarian based items')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO food_category (id, tenant_id, name, description) VALUES
+('fc_3', 'tenant_1', 'vegan', 'Vegan based items')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO food_category (id, tenant_id, name, description) VALUES
+('fc_4', 'tenant_1', 'gluten-free', 'Gluten-free based items')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO food_category (id, tenant_id, name, description) VALUES
+('fc_5', 'tenant_1', 'dairy-free', 'Dairy-free based items')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO food_category (id, tenant_id, name, description) VALUES
+('fc_6', 'tenant_1', 'jain', 'Jain diet items')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO food_item (id, tenant_id, name, description, price, category_id) VALUES

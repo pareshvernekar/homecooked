@@ -13,38 +13,42 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/jmoiron/sqlx"
+	cache "github.com/pareshvernekar/homecooked/internal/cache"
 	"github.com/pareshvernekar/homecooked/internal/config"
 	"github.com/pareshvernekar/homecooked/internal/handlers"
-	"github.com/pareshvernekar/homecooked/internal/middleware"
+	logger "github.com/pareshvernekar/homecooked/internal/logger"
+	middleware "github.com/pareshvernekar/homecooked/internal/middleware"
 )
 
 // Server represents the HTTP server structure
 type Server struct {
 	Router *gin.Engine
 	DB     *sqlx.DB
-	Logger *slog.Logger
+	Logger *logger.Logger
+	Cache  cache.Client // Cache client for food item caching
 }
 
 // NewServer creates a new server instance with proper initialization
-func NewServer(db *sqlx.DB, logger *slog.Logger) *Server {
-	router := setupGinEngine(logger)
+func NewServer(db *sqlx.DB, l *logger.Logger, c cache.Client) *Server {
+	router := setupGinEngine(l)
 
 	return &Server{
 		Router: router,
 		DB:     db,
-		Logger: logger,
+		Logger: l,
+		Cache:  c,
 	}
 }
 
 // Run starts the server and handles graceful shutdown
 func (s *Server) Run(ctx context.Context) error {
-	port := config.Config.GetInt("server.port")
+	port := config.GetInt("server.port")
 
 	// Apply the global middleware to all routes
-	s.Router.Use(middleware.TenantMiddleware())
+	s.Router.Use(middleware.TenantMiddleware(s.Logger))
 
 	addr := fmt.Sprintf(":%d", port)
-	s.Logger.Info("Starting server", "address", addr)
+	s.Logger.Info(ctx, "Starting server", "address", addr)
 
 	server := &http.Server{
 		Addr:         addr,
@@ -57,7 +61,7 @@ func (s *Server) Run(ctx context.Context) error {
 	// Start the server in a goroutine
 	go func() {
 		if err := server.ListenAndServe(); err != http.ErrServerClosed {
-			s.Logger.Error("Server failed to start", "error", err)
+			s.Logger.Error(ctx, "Server failed to start", "error", err)
 			return
 		}
 	}()
@@ -67,14 +71,45 @@ func (s *Server) Run(ctx context.Context) error {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigChan
 
-	s.Logger.Info("Server shutdown initiated...")
+	s.Logger.Info(ctx, "Server shutdown initiated...")
 
 	// Graceful shutdown
-	if err := s.gracefulShutdown(server); err != nil {
+	if err := s.gracefulShutdown(ctx, server); err != nil {
 		return fmt.Errorf("server shutdown failed: %w", err)
 	}
 
-	s.Logger.Info("Server stopped gracefully")
+	s.Logger.Info(ctx, "Server stopped gracefully")
+	return nil
+}
+
+// gracefulShutdown performs a graceful server shutdown
+func (s *Server) gracefulShutdown(ctx context.Context, server *http.Server) error {
+	// Create context with timeout for graceful shutdown
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	s.Logger.Info(shutdownCtx, "Initiating graceful shutdown...")
+
+	// Shutdown the HTTP server gracefully
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("server shutdown error: %w", err)
+	}
+
+	// Close database connections
+	if s.DB != nil {
+		if closeErr := s.DB.Close(); closeErr != nil {
+			s.Logger.Error(ctx, "Failed to close database connection", "error", closeErr)
+			return fmt.Errorf("failed to close DB: %w", closeErr)
+		}
+		s.Logger.Info(ctx, "Database connection closed")
+	}
+
+	// Close cache connections if applicable
+	if s.Cache != nil {
+		s.Logger.Info(ctx, "Cache client closed")
+	}
+
+	s.Logger.Info(shutdownCtx, "Server shutdown completed successfully")
 	return nil
 }
 
@@ -88,34 +123,21 @@ func GetVersion() string {
 	return "1.0.0"
 }
 
-// gracefulShutdown performs a graceful server shutdown
-func (s *Server) gracefulShutdown(server *http.Server) error {
-	// Create context with 30 second timeout for graceful shutdown
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	s.Logger.Info("Initiating graceful shutdown...")
-
-	// Shutdown the HTTP server gracefully
-	if err := server.Shutdown(shutdownCtx); err != nil {
-		return fmt.Errorf("server shutdown error: %w", err)
-	}
-
-	s.Logger.Info("Server shutdown completed successfully")
-	return nil
-}
-
 // SetupRoutes configures all API routes with dependency injection
-func SetupRoutes(router *gin.Engine, db *sqlx.DB, logger *slog.Logger, foodItemHandler *handlers.FoodItemHandler) {
+func SetupRoutes(router *gin.Engine, db *sqlx.DB, l *logger.Logger, foodItemHandler *handlers.FoodItemHandler, cacheClient cache.Client) {
 	api := router.Group("/api/v1")
 
 	v1 := api.Group("/")
 
-	// Food Items Routes - Using Dependency Injection
+	// Food Items Routes - Using Dependency Injection and Caching
 	foodItems := v1.Group("/food-items")
-	foodItems.GET("", foodItemHandler.GetFoodItems)
+	foodItems.GET("", func(c *gin.Context) {
+		foodItemHandler.GetFoodItems(c)
+	})
 	foodItems.POST("", foodItemHandler.CreateFoodItem)
-	foodItems.PUT("/:id", foodItemHandler.UpdateFoodItem)
+	foodItems.PUT("/:id", func(c *gin.Context) {
+		foodItemHandler.UpdateFoodItem(c)
+	})
 	foodItems.DELETE("/:id", foodItemHandler.DeleteFoodItem)
 
 	// Categories Routes (placeholder)
@@ -169,7 +191,7 @@ func SetupRoutes(router *gin.Engine, db *sqlx.DB, logger *slog.Logger, foodItemH
 }
 
 // Helper function to initialize the Gin engine with global middleware and configuration
-func setupGinEngine(logger *slog.Logger) *gin.Engine {
+func setupGinEngine(logger *logger.Logger) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New()
@@ -183,28 +205,22 @@ func setupGinEngine(logger *slog.Logger) *gin.Engine {
 	return router
 }
 
-// jsonLogger wraps slog to provide JSON-formatted logging for Gin
-func jsonLogger(slogger *slog.Logger) gin.HandlerFunc {
+// jsonLogger wraps logger to provide JSON-formatted logging for Gin
+func jsonLogger(slogger *logger.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 
-		// Extract tenant ID from context if available
-		tenantID := c.GetString(middleware.TenantIDKey)
-
 		c.Next()
 
-		// Log response with timing and status
 		duration := time.Since(start)
 		statusCode := c.Writer.Status()
 
-		slogger.Log(
-			c.Request.Context(),
-			slog.LevelInfo,
-			fmt.Sprintf("HTTP %s %s - %d - %.2fs",
-				c.Request.Method,
-				c.Request.URL.Path,
-				statusCode,
-				duration.Seconds()),
+		tenantID := ""
+		if tenant, ok := c.Get(middleware.TenantIDKey); ok {
+			tenantID = tenant.(string)
+		}
+
+		slogger.Info(c.Request.Context(), "HTTP request completed",
 			slog.String("method", c.Request.Method),
 			slog.String("path", c.Request.URL.Path),
 			slog.Int("status_code", statusCode),
@@ -213,8 +229,7 @@ func jsonLogger(slogger *slog.Logger) gin.HandlerFunc {
 		)
 
 		if tenantID != "" {
-			slogger.Log(c.Request.Context(), slog.LevelInfo,
-				fmt.Sprintf("Tenant %s accessed endpoint: %s", tenantID, c.Request.URL.Path),
+			slogger.Info(c.Request.Context(), "Tenant request processed",
 				slog.String("tenant_id", tenantID),
 				slog.String("path", c.Request.URL.Path),
 			)

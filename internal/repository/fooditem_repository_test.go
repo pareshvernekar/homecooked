@@ -35,12 +35,12 @@ func createDB() *sqlx.DB {
 		panic(err)
 	}
 
-	result, err := db.Exec(`CREATE TABLE IF NOT EXISTS food_items (id TEXT PRIMARY KEY, name TEXT, description TEXT, price DECIMAL(10,2), category TEXT, tenant_id VARCHAR(50), created_at TIMESTAMP, updated_at TIMESTAMP)`)
+	result, err := db.Exec(`CREATE TABLE IF NOT EXISTS food_item (id TEXT PRIMARY KEY, name TEXT, description TEXT, price DECIMAL(10,2), category TEXT, tenant_id VARCHAR(50), created_at TIMESTAMP, updated_at TIMESTAMP)`)
 	if err != nil {
 		panic(err)
 	}
 	if result == nil {
-		panic("Failed to create food_items table")
+		panic("Failed to create food_item table")
 	}
 
 	return db
@@ -99,7 +99,7 @@ func TestListByTenant_FoodItemsSuccess(t *testing.T) {
 
 	repo := NewFoodItemRepository(testDB, "1")
 
-	result, err := testDB.Exec(`INSERT INTO food_items (id, name, price) VALUES ('uuid-1', 'Burger 1', 10.99)`)
+	result, err := testDB.Exec(`INSERT INTO food_item (id, name, price) VALUES ('uuid-1', 'Burger 1', 10.99)`)
 	if err != nil {
 		t.Fatal(err)
 	}

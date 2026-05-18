@@ -245,7 +245,7 @@ CREATE TABLE food_item (
 CREATE TABLE food_category (
   id VARCHAR(50) PRIMARY KEY,
   tenant_id VARCHAR(50) NOT NULL,
-  name VARCHAR(100) NOT NULL,
+  name VARCHAR(100) NOT NULL UNIQUE,
   description TEXT,
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL,
@@ -253,7 +253,7 @@ CREATE TABLE food_category (
 );
 ```
 
--- Link food_items to categories
+-- Link food_item to categories
 ```sql
 ALTER TABLE food_item
   ADD CONSTRAINT fk_food_item_category

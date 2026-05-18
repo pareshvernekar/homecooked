@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pareshvernekar/homecooked/internal/config"
+	logger "github.com/pareshvernekar/homecooked/internal/logger"
 )
 
 func TestTenantMiddleware(t *testing.T) {
@@ -25,8 +26,9 @@ func TestTenantMiddleware(t *testing.T) {
 	}
 
 	// Create a test router and add the TenantMiddleware
+	l := logger.NewLogger()
 	router := gin.Default()
-	router.Use(TenantMiddleware())
+	router.Use(TenantMiddleware(l))
 	router.GET("/", testHandler)
 
 	// Test cases

@@ -183,7 +183,7 @@ The following tables mirror the `specs/food_menu_system/spec.md` design. Primary
 CREATE TABLE food_category (
     id VARCHAR(50) PRIMARY KEY,
     tenant_id VARCHAR(50) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-    name VARCHAR(100) NOT NULL,
+    name VARCHAR(100) NOT NULL UNIQUE,
     description TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

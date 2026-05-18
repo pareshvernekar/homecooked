@@ -50,7 +50,7 @@ Design and set up the database schema with comprehensive multi-tenancy support a
    - Configure database connection with tenant-specific settings
 
 2. **Database Schema Design with Multi-Tenancy**
-   - Define database tables with tenant ID field: `food_items`, `categories`, `users`, `menus`, `menu_items`, `orders`, `order_items`, `notifications`
+   - Define database tables with tenant ID field: `food_item`, `categories`, `users`, `menus`, `menu_items`, `orders`, `order_items`, `notifications`
    - Add tenant_id column to all tables as foreign key to tenants table
    - Implement row-level security policies for tenant isolation
    - Create indexes on tenant_id columns for performance
@@ -216,7 +216,7 @@ Design and set up the database schema and migrations.
 
 ### Tasks
 1. **Database Schema Design**
-   - Define database tables: `food_items`, `categories`, `users`, `menus`, `menu_items`, `orders`, `order_items`, `notifications`
+   - Define database tables: `food_item`, `categories`, `users`, `menus`, `menu_items`, `orders`, `order_items`, `notifications`
    - Define relationships between tables
    - Create primary keys, foreign keys, and indexes
 

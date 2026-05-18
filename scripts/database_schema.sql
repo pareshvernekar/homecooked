@@ -2,33 +2,6 @@
 -- Version: 1.0
 -- Last Updated: 2026-05-02
 
--- Enable Row Level Security
-ALTER TABLE IF EXISTS public.tenant_restaurants ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.tenant_restaurant_categories ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.tenant_menu_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.tenant_menu_item_images ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.tenant_inventory_categories ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.tenant_inventory_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.tenant_inventory_stock ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.tenant_orders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.tenant_order_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.tenant_payments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.tenant_reviews ENABLE ROW LEVEL SECURITY;
-
--- Create Function to Update Timestamps
-CREATE OR REPLACE FUNCTION update_timestamp() RETURNS TRIGGER AS $$BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;$$ LANGUAGE plpgsql;
-
--- Apply Triggers to Update Timestamps
-CREATE TRIGGER IF NOT EXISTS update_tenants_timestamp BEFORE UPDATE ON tenants FOR EACH ROW EXECUTE FUNCTION update_timestamp();
-CREATE TRIGGER IF NOT EXISTS update_users_timestamp BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_timestamp();
-CREATE TRIGGER IF NOT EXISTS update_restaurants_timestamp BEFORE UPDATE ON tenant_restaurants FOR EACH ROW EXECUTE FUNCTION update_timestamp();
-CREATE TRIGGER IF NOT EXISTS update_menu_items_timestamp BEFORE UPDATE ON tenant_menu_items FOR EACH ROW EXECUTE FUNCTION update_timestamp();
-CREATE TRIGGER IF NOT EXISTS update_orders_timestamp BEFORE UPDATE ON tenant_orders FOR EACH ROW EXECUTE FUNCTION update_timestamp();
-CREATE TRIGGER IF NOT EXISTS update_payments_timestamp BEFORE UPDATE ON tenant_payments FOR EACH ROW EXECUTE FUNCTION update_timestamp();
-
 -- Create Tenants Table
 CREATE TABLE tenants (
     tenant_id SERIAL PRIMARY KEY,
@@ -339,6 +312,36 @@ CREATE INDEX idx_tenant_order_items_menu_item_id ON tenant_order_items(menu_item
 CREATE INDEX idx_tenant_payments_tenant_id ON tenant_payments(tenant_id);
 CREATE INDEX idx_tenant_payments_order_id ON tenant_payments(order_id);
 CREATE INDEX idx_tenant_payments_status ON tenant_payments(status);
+
+
+
+-- Enable Row Level Security
+ALTER TABLE IF EXISTS public.tenant_restaurants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.tenant_restaurant_categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.tenant_menu_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.tenant_menu_item_images ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.tenant_inventory_categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.tenant_inventory_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.tenant_inventory_stock ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.tenant_orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.tenant_order_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.tenant_payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.tenant_reviews ENABLE ROW LEVEL SECURITY;
+
+-- Create Function to Update Timestamps
+CREATE OR REPLACE FUNCTION update_timestamp() RETURNS TRIGGER AS $$BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;$$ LANGUAGE plpgsql;
+
+-- Apply Triggers to Update Timestamps
+CREATE TRIGGER IF NOT EXISTS update_tenants_timestamp BEFORE UPDATE ON tenants FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+CREATE TRIGGER IF NOT EXISTS update_users_timestamp BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+CREATE TRIGGER IF NOT EXISTS update_restaurants_timestamp BEFORE UPDATE ON tenant_restaurants FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+CREATE TRIGGER IF NOT EXISTS update_menu_items_timestamp BEFORE UPDATE ON tenant_menu_items FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+CREATE TRIGGER IF NOT EXISTS update_orders_timestamp BEFORE UPDATE ON tenant_orders FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+CREATE TRIGGER IF NOT EXISTS update_payments_timestamp BEFORE UPDATE ON tenant_payments FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+
 
 -- Create Views for Tenant-Specific Data
 

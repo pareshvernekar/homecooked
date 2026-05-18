@@ -38,7 +38,7 @@ func (r *PostgreSQLFoodItemRepository) Create(f *models.FoodItem) error {
 	now := time.Now().UTC()
 
 	// Use Exec to insert the record (since we know the UUID)
-	result, err := r.DB.Exec("INSERT INTO food_items (id, name, description, price, category, tenant_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+	result, err := r.DB.Exec("INSERT INTO food_item (id, name, description, price, category, tenant_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
 		f.ID, f.Name, f.Description, f.Price, f.Category, r.TenantID, &now, &now)
 	if err != nil {
 		return err
@@ -56,7 +56,7 @@ func (r *PostgreSQLFoodItemRepository) Create(f *models.FoodItem) error {
 // GetByID retrieves a food item by its UUID
 func (r *PostgreSQLFoodItemRepository) GetByID(id string) (*models.FoodItem, error) {
 	var foodItem models.FoodItem
-	query := `SELECT * FROM food_items WHERE id = $1`
+	query := `SELECT * FROM food_item WHERE id = $1`
 
 	if err := r.DB.Get(&foodItem, query, id); err != nil {
 		return nil, err
@@ -67,7 +67,7 @@ func (r *PostgreSQLFoodItemRepository) GetByID(id string) (*models.FoodItem, err
 
 // Update updates an existing food item
 func (r *PostgreSQLFoodItemRepository) Update(foodItem *models.FoodItem) error {
-	result, err := r.DB.Exec("UPDATE food_items SET name = $2, description = $3, price = $4 WHERE id = $1",
+	result, err := r.DB.Exec("UPDATE food_item SET name = $2, description = $3, price = $4 WHERE id = $1",
 		foodItem.ID, foodItem.Name, foodItem.Description, foodItem.Price)
 	if err != nil {
 		return err
@@ -84,7 +84,7 @@ func (r *PostgreSQLFoodItemRepository) Update(foodItem *models.FoodItem) error {
 
 // Delete removes a food item by its UUID
 func (r *PostgreSQLFoodItemRepository) Delete(id string) error {
-	result, err := r.DB.Exec("DELETE FROM food_items WHERE id = $1", id)
+	result, err := r.DB.Exec("DELETE FROM food_item WHERE id = $1", id)
 	if err != nil {
 		return err
 	}
@@ -104,14 +104,14 @@ func (r *PostgreSQLFoodItemRepository) ListByTenant(tenantID string, offset, lim
 
 	// Count total items for pagination
 	var total int64
-	countQuery := `SELECT COUNT(*) FROM food_items WHERE current_setting('app.current_tenant_id')::TEXT = $1`
+	countQuery := `SELECT COUNT(*) FROM food_item WHERE current_setting('app.current_tenant_id')::TEXT = $1`
 	if err := r.DB.Get(&total, countQuery, tenantID); err != nil {
 		return nil, 0, err
 	}
 
 	// Select paginated items
 	var foodItems []models.FoodItem
-	selectQuery := `SELECT * FROM food_items 
+	selectQuery := `SELECT * FROM food_item 
                     WHERE current_setting('app.current_tenant_id')::TEXT = $1 
                     ORDER BY created_at DESC 
                     LIMIT $2 OFFSET $3`

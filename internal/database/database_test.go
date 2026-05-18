@@ -2,26 +2,27 @@ package database
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"regexp"
 	"testing"
 
+	"github.com/pareshvernekar/homecooked/internal/logger"
+
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/jmoiron/sqlx"
 	"github.com/pareshvernekar/homecooked/internal/config"
-	"github.com/pareshvernekar/homecooked/internal/logger"
 )
 
 func TestInitDB_WithConnectionString(t *testing.T) {
 	TenantID = "1"
 	DB = NewMockDB("1") // Direct initialization - no defer needed
+	l := logger.NewLogger()
 	defer func() {
 		if closeErr := DB.Close(); closeErr != nil {
-			logger.Logger.Error("Failed to close DB", slog.Any("error", closeErr))
+			t.Logf("Failed to close DB: %v", closeErr)
 		}
 	}() // Ensure mock DB is closed after test
-	if err := SetTenantContext("1"); err == nil {
+	if err := SetTenantContext("1", l); err == nil {
 		t.Log("✓ Tenant context set successfully in mock mode")
 	} else {
 		t.Logf("SetTenantContext skipped: %v", err)
@@ -33,13 +34,15 @@ func TestInitDB_WithConnectionString(t *testing.T) {
 func TestSetTenantContext(t *testing.T) {
 
 	TenantID = "test-tenant-uuid-12345"
+	l := logger.NewLogger()
 	DB = NewMockDB("test-tenant-uuid-12345")
 	defer func() {
 		if closeErr := DB.Close(); closeErr != nil {
-			logger.Logger.Error("Failed to close DB", slog.Any("error", closeErr))
+			t.Logf("Failed to close DB: %v", closeErr)
 		}
 	}() // Ensure mock DB is closed after test
-	err := SetTenantContext("test-tenant-uuid-12345")
+
+	err := SetTenantContext("test-tenant-uuid-12345", l)
 	if err != nil {
 		t.Errorf("Failed to set tenant context: %v", err)
 		return
@@ -54,15 +57,21 @@ func TestSetTenantContext(t *testing.T) {
 
 func TestGetDB(t *testing.T) {
 	initTest()
+	l := logger.NewLogger()
 	// Create mock DB with configured pool settings (direct instantiation)
 	DB = NewMockDB("1") // ← Mock created directly, no InitDB call
 	defer func() {
 		if closeErr := DB.Close(); closeErr != nil {
-			logger.Logger.Error("Failed to close DB", slog.Any("error", closeErr))
+			t.Logf("Failed to close DB: %v", closeErr)
 		}
 	}() // Ensure mock DB is closed after test
+	err := SetTenantContext("test-tenant-uuid-12345", l)
+	if err != nil {
+		t.Errorf("Failed to set tenant context: %v", err)
+		return
+	}
 
-	db := GetDB()
+	db := GetDB(l)
 	if db == nil {
 		t.Errorf("GetDB returned nil after initialization")
 	} else {
@@ -78,11 +87,13 @@ func TestGetDB(t *testing.T) {
 
 func TestSetTenantID(t *testing.T) {
 
+	l := logger.NewLogger()
+
 	// Create mock DB with configured pool settings (direct instantiation)
 	DB = NewMockDB("original-tenant-id") // ← Mock created directly, no InitDB call
 	defer func() {
 		if closeErr := DB.Close(); closeErr != nil {
-			logger.Logger.Error("Failed to close DB", slog.Any("error", closeErr))
+			t.Logf("Failed to close DB: %v", closeErr)
 		}
 	}() // Ensure mock DB is closed after test
 
@@ -92,7 +103,7 @@ func TestSetTenantID(t *testing.T) {
 		return
 	}
 
-	err := SetTenantID("new-tenant-id")
+	err := SetTenantID("new-tenant-id", l)
 	if err != nil {
 		t.Logf("SetTenantID failed: %v", err)
 		return
@@ -106,11 +117,17 @@ func TestSetTenantID(t *testing.T) {
 }
 
 func TestClose(t *testing.T) {
+	l := logger.NewLogger()
 	// Create mock DB with configured pool settings (direct instantiation)
 	DB = NewMockDB("original-tenant-id")
+	err := SetTenantContext("test-tenant-uuid-12345", l)
+	if err != nil {
+		t.Errorf("Failed to set tenant context: %v", err)
+		return
+	}
 
 	if DB != nil {
-		err := Close()
+		err := DB.Close()
 		if err != nil {
 			t.Logf("Close failed: %v", err)
 		} else {
@@ -120,14 +137,19 @@ func TestClose(t *testing.T) {
 }
 
 func TestConnectionPoolConfigurations(t *testing.T) {
-
+	l := logger.NewLogger()
 	// Create mock DB with configured pool settings (direct instantiation)
 	DB = NewMockDB("1") // ← Mock created directly, no InitDB call
 	defer func() {
 		if closeErr := DB.Close(); closeErr != nil {
-			logger.Logger.Error("Failed to close DB", slog.Any("error", closeErr))
+			t.Logf("Failed to close DB: %v", closeErr)
 		}
 	}() // Ensure mock DB is closed after test
+	err := SetTenantContext("test-tenant-uuid-12345", l)
+	if err != nil {
+		t.Errorf("Failed to set tenant context: %v", err)
+		return
+	}
 	// Set the pool configuration on our mock
 	DB.SetMaxOpenConns(defaultMaxOpenConns) // 25
 	DB.SetMaxIdleConns(defaultMaxIdleConns) // 5
@@ -181,7 +203,7 @@ func NewMockDB(tenantID string) *sqlx.DB {
 	}
 	sqlxDb := sqlx.NewDb(db, "sqlmock")
 
-	mock.ExpectExec(regexp.QuoteMeta("SET app.current_tenant_id = $1")).
+	mock.ExpectExec(regexp.QuoteMeta("SET app.current_tenant_id = ?")).
 		WithArgs(sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	//	mock.ExpectQuery("SELECT 1").WillReturnRows(sqlmock.NewRows([]string{"result"}).AddRow())
