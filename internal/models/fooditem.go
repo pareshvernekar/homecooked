@@ -6,55 +6,45 @@ import (
 	"github.com/google/uuid"
 )
 
-// FoodCategory represents a food category in the database (e.g., vegetarian, non-vegetarian, vegan)
-type FoodCategory struct {
-	ID           string         `db:"id"`
-	TenantID     string         `db:"tenant_id"`
-	Name         string         `db:"name"`
-	Description    *string      `db:"description"`
-	CreatedAt    time.Time     `db:"created_at"`
-	UpdatedAt    time.Time     `db:"updated_at"`
-}
-
 // FoodItem represents a food menu item in the database
 type FoodItem struct {
-	ID                 string       `json:"id"`
-	TenantID           string       `json:"tenant_id"`
-	Name               string       `json:"name"`
-	Description         *string      `json:"description,omitempty"`
-	Category           string       `json:"category"`
-	Price              float64      `json:"price"`
-	ImageURL            *string      `json:"image_url,omitempty"`
-	Avoidance          string       `json:"avoidance,omitempty"`
-	IsVegetarian       bool         `json:"is_vegetarian"`
-	AvailabilityStatus string       `json:"availability_status"`
-	CreatedAt           *time.Time   `json:"created_at,omitempty"`
-	UpdatedAt           *time.Time   `json:"updated_at,omitempty"`
-	DeliveredAt         *time.Time   `json:"delivered_at,omitempty"`
+	ID                  string        `json:"id"`
+	TenantID            string        `json:"tenant_id"`
+	Name                string        `json:"name"`
+	Description         *string       `json:"description,omitempty"`
+	Category            string        `json:"category"`
+	Price               float64       `json:"price"`
+	ImageURL            *string       `json:"image_url,omitempty"`
+	Avoidance          *string       `json:"avoidance,omitempty"`
+	IsVegetarian        bool          `json:"is_vegetarian"`
+	AvailabilityStatus  string        `json:"availability_status"`
+	CreatedAt           *time.Time    `json:"created_at,omitempty"`
+	UpdatedAt           *time.Time    `json:"updated_at,omitempty"`
+	DeliveredAt         *time.Time    `json:"delivered_at,omitempty"`
 }
 
 // FoodItemCreateRequest represents the request payload for creating a food item
 type FoodItemCreateRequest struct {
-	Name               string   `json:"name" binding:"required"`
-	Description         *string  `json:"description,omitempty"`
-	Category           string   `json:"category" binding:"required"`
-	Price              float64  `json:"price" binding:"required,gte=0"`
-	ImageURL            *string  `json:"image_url,omitempty"`
-	Avoidance          *string   `json:"avoidance,omitempty"`
-	IsVegetarian       *bool     `json:"is_vegetarian,omitempty"`
-	AvailabilityStatus string    `json:"availability_status" binding:"required"`
+	Name               string    `json:"name" binding:"required"`
+	Description        *string   `json:"description,omitempty"`
+	Category           string    `json:"category" binding:"required"`
+	Price              float64   `json:"price" binding:"required,gte=0"`
+	ImageURL           *string   `json:"image_url,omitempty"`
+	Avoidance         *string    `json:"avoidance,omitempty"`
+	IsVegetarian      *bool      `json:"is_vegetarian,omitempty"`
+	AvailabilityStatus string     `json:"availability_status" binding:"required"`
 }
 
 // FoodItemUpdateRequest represents the request payload for updating a food item
 type FoodItemUpdateRequest struct {
-	Name               string   `json:"name,omitempty"`
-	Description         *string  `json:"description,omitempty"`
-	Category           string   `json:"category,omitempty"`
-	Price              float64  `json:"price,omitempty"`
-	ImageURL            *string  `json:"image_url,omitempty"`
-	Avoidance          *string   `json:"avoidance,omitempty"`
-	IsVegetarian       *bool     `json:"is_vegetarian,omitempty"`
-	AvailabilityStatus string    `json:"availability_status,omitempty"`
+	Name               string    `json:"name,omitempty"`
+	Description        *string   `json:"description,omitempty"`
+	Category           string    `json:"category,omitempty"`
+	Price              float64   `json:"price,omitempty"`
+	ImageURL           *string   `json:"image_url,omitempty"`
+	Avoidance         *string    `json:"avoidance,omitempty"`
+	IsVegetarian      *bool      `json:"is_vegetarian,omitempty"`
+	AvailabilityStatus string     `json:"availability_status,omitempty"`
 }
 
 // Helper function to validate category enum

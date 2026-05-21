@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "adversarial-review": {
+      "source": "dementev-dev/adversarial-review",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "34723928734b1c1463cb7343e871848e36e77111ff08d067fe5f6fe3ea46ca01"
+    }
+  }
+}

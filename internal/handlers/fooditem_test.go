@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	cache "github.com/pareshvernekar/homecooked/internal/cache"
+	repo "github.com/pareshvernekar/homecooked/internal/repository"
 	logger "github.com/pareshvernekar/homecooked/internal/logger"
 	"github.com/pareshvernekar/homecooked/internal/middleware"
 	"github.com/pareshvernekar/homecooked/internal/models"
@@ -43,6 +44,10 @@ func (mc *MockCacheClient) Set(ctx context.Context, key string, value any, optio
 
 func (mc *MockCacheClient) Has(key string) bool {
 	return false
+}
+
+func (mc *MockCacheClient) PostInitialize(ctx context.Context, tenantID string, repository repo.FoodCategoryRepository) error {
+	return nil // Mock implementation - no-op
 }
 
 func TestNewFoodItemHandler(t *testing.T) {

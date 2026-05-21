@@ -5,3 +5,6 @@ cache:
     ttls:
         menu.weekly: "30m"
         order.menu_items: "15m"
+        food_category: "30m"   # Food categories expire after 30 min
+        catering_menu.items: "60m"
+        catering_menu: "60m"

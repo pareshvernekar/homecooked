@@ -9,7 +9,7 @@ type FoodCategory struct {
 	ID           string          `db:"id"`
 	TenantID     string          `db:"tenant_id"`
 	Name         string          `db:"name"`
-	Description  *string         `db:"description"`
+	Description   *string         `db:"description"`
 	CreatedAt    time.Time       `db:"created_at"`
 	UpdatedAt    time.Time       `db:"updated_at"`
 }
@@ -72,9 +72,9 @@ func (f *FoodCategory) ConvertToSnakeCase() string {
 	s := ""
 	for i, c := range f.Name {
 		if i == 0 {
-			s += toLower(c)
+			s += string(toLower(c))
 		} else if isUpper(c) {
-			s += "_" + toLower(c)
+			s += "_" + string(toLower(c))
 		} else {
 			s += string(c)
 		}
