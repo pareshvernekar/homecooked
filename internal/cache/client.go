@@ -18,7 +18,6 @@ type SetOption func(*Option) error
 
 type Option struct {
 	TTL time.Duration
-	// Add other fields here
 }
 
 // WithTTL correctly declares [T any] on the method receiver to avoid "undefined T"
@@ -34,30 +33,29 @@ type Client interface {
 	Get(ctx context.Context, key string) (any, error)
 	Set(ctx context.Context, key string, value any, options ...SetOption) error
 	Has(key string) bool
-	PostInitialize(ctx context.Context, tenantID string, db *sqlx.DB) error // NEW: Post-initialization hook for database-driven population
 }
 
 // Define cache entry structure for TTL tracking
 type CacheEntry struct {
-	Key        string        // Cache key in format: entity_type:id
-	Value      interface{}   // Stored value
-	AccessedAt time.Time     // When last accessed (for eviction)
-	TTL        time.Duration // Time-to-live duration
+	Key        string         // Cache key in format: entity_type:id
+	Value      interface{}    // Stored value
+	AccessedAt time.Time      // When last accessed (for eviction)
+	TTL        time.Duration  // Time-to-live duration
 }
 
 // cacheImpl implements the Client interface using eko/gocache library.
 type cacheImpl struct {
-	store  *gocache.Cache[any] // Memory store backend from go_cache flavor
+	store   *gocache.Cache[any] // Memory store backend from go_cache flavor
 	config CacheConfig         // Configuration for per-operation behavior
-	mu     sync.RWMutex        // Thread safety lock
+	mu      sync.RWMutex        // Thread safety lock
 }
 
 // NewCacheClient creates a new cache client with the given configuration.
 // Correct eko/gocache initialization pattern:
 //
-//	gocacheClient := inmemoryCache.New(defaultTTL, maxTTL)        // Default & max TTL params
-//	gocacheStore := goCacheStore.NewGoCache(gocacheClient)  // Memory store backend implementation
-//	cacheManager := gocache.New[string, any](gocacheStore)  // Cache client instance
+//	gocacheClient := inmemoryCache.New(defaultTTL, maxTTL)         // Default & max TTL params
+//	gocacheStore := goCacheStore.NewGoCache(gocacheClient)        // Memory store backend implementation
+//	cacheManager := gocache.New[string, any](gocacheStore)       // Cache client instance
 func NewCacheClient(config CacheConfig) (Client, error) {
 	// Create eko/gocache client with correct API pattern from docs:
 	if config.DefaultTTL <= 0 {
@@ -68,8 +66,8 @@ func NewCacheClient(config CacheConfig) (Client, error) {
 		return nil, fmt.Errorf("invalid max items: must be positive")
 	}
 	gocacheClient := inmemoryCache.New(config.DefaultTTL, config.DefaultTTL*2) // Default & max TTL params
-	gocacheStore := goCacheStore.NewGoCache(gocacheClient)                     // Memory store backend implementation
-	cacheManager := gocache.New[any](gocacheStore)                             // Cache client instance
+	gocacheStore := goCacheStore.NewGoCache(gocacheClient)                      // Memory store backend implementation
+	cacheManager := gocache.New[any](gocacheStore)                              // Cache client instance
 
 	if cacheManager == nil {
 		return nil, fmt.Errorf("failed to create cache manager")
@@ -193,12 +191,53 @@ func (c *cacheImpl) updateAccessTime(key string) {
 }
 
 // Helper functions for actual implementation
-func (c *cacheImpl) loadFromDatabase(ctx context.Context, entityType, entityId string) (*CacheEntry, error) {
-	// Placeholder - in real implementation would query database
-	return &CacheEntry{
-		Key:        entityType + ":" + entityId,
-		Value:      nil,
-		AccessedAt: time.Now(),
-		TTL:        c.config.DefaultTTL,
-	}, nil
+
+// PostInitialize initializes the cache with food category data from the database at startup.
+// This method queries the food_category table and populates the in-memory cache using entity_type:name key convention.
+// It must be called after cache client creation but before serving HTTP requests.
+func (c *cacheImpl) PostInitialize(ctx context.Context, repo repository.FoodCategoryRepository) error {
+	// Acquire write lock for thread-safe cache population
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Query food categories for this tenant using repository pattern
+	var categories []models.FoodCategory
+	err := repo.ListByTenant(c.config.TenantID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch food categories: %w", err)
+	}
+
+	if len(categories) == 0 {
+		c.logger.Info("No food categories found for tenant", "tenant_id", c.config.TenantID)
+		return nil
+	}
+
+	// Populate cache with each category using entity_type:name key format (e.g., "food-category:vegetarian")
+	for _, cat := range categories {
+		key := cat.GetCacheKey()
+		value := &models.FoodCategory{
+			ID:           cat.ID,
+			TenantID:     cat.TenantID,
+			Name:         cat.Name,
+			Description:  cat.Description,
+			CreatedAt:    cat.CreatedAt,
+			UpdatedAt:    cat.UpdatedAt,
+		}
+
+		// Apply TTL from config override or use global default (30m)
+		ttl := c.config.TTLOverrides["food_category"]
+		if ttl == 0 {
+			ttl = c.config.DefaultTTL
+		}
+
+		err = c.store.Set(ctx, key, value, store.WithExpiration(ttl))
+		if err != nil {
+			return fmt.Errorf("failed to cache category %s: %w", cat.Name, err)
+		}
+	}
+
+	c.logger.Info("Cache initialized with food categories", "tenant_id", c.config.TenantID, "categories", len(categories))
+	return nil
 }
+
+// Helper functions for actual implementation
