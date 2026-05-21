@@ -34,6 +34,7 @@ type Client interface {
 	Get(ctx context.Context, key string) (any, error)
 	Set(ctx context.Context, key string, value any, options ...SetOption) error
 	Has(key string) bool
+	PostInitialize(ctx context.Context, tenantID string, db *sqlx.DB) error // NEW: Post-initialization hook for database-driven population
 }
 
 // Define cache entry structure for TTL tracking
