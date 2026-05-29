@@ -8,13 +8,13 @@ import (
 
 // ErrorResponse represents a standardized error response format
 type ErrorResponse struct {
-	Success    bool        `json:"success"`
-	ErrorCode  string      `json:"error_code"`
-	Message    string      `json:"message"`
-	RequestID  string      `json:"request_id,omitempty"`
-	Detail     interface{} `json:"details,omitempty"` // Can be map, array, or error message
-	StatusCode int         `json:"-"`                 // Not sent in response (used internally)
-	Timestamp  time.Time   `json:"timestamp"`
+	Success    bool      `json:"success"`
+	ErrorCode  string    `json:"error_code"`
+	Message    string    `json:"message"`
+	RequestID  string    `json:"request_id,omitempty"`
+	Detail     any       `json:"details,omitempty"` // Can be map, array, or error message
+	StatusCode int       `json:"-"`                 // Not sent in response (used internally)
+	Timestamp  time.Time `json:"timestamp"`
 }
 
 // Error implements the error interface for ErrorResponse

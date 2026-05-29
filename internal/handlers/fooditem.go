@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -19,16 +20,16 @@ import (
 
 // FoodItemHandler handles food item related operations
 type FoodItemHandler struct {
-	Repo        repository.FoodItemRepository
+	Repo       repository.FoodItemRepository
 	Logger      *logger.Logger
-	CacheClient cache.Client
+	CacheClient cache.TypedClient[models.FoodItem]
 }
 
 // NewFoodItemHandler creates a new instance of FoodItemHandler with dependency injection
-func NewFoodItemHandler(repo repository.FoodItemRepository, l *logger.Logger, c cache.Client) *FoodItemHandler {
+func NewFoodItemHandler(repo repository.FoodItemRepository, l *logger.Logger, c cache.TypedClient[models.FoodItem]) *FoodItemHandler {
 	return &FoodItemHandler{
-		Repo:        repo,
-		Logger:      l,
+		Repo:       repo,
+		Logger:     l,
 		CacheClient: c,
 	}
 }
@@ -59,48 +60,38 @@ func (h *FoodItemHandler) GetFoodItems(c *gin.Context) {
 
 	var foodItems []models.FoodItem
 
-	cacheUsed := false
-
 	// Attempt to load from cache if cache client is available
 	if h.CacheClient != nil {
-		key := fmt.Sprintf("food_catalog.food_details:%s", tenantID)
-		val, err := h.CacheClient.Get(ctx, key)
-		if err == nil && val != nil {
-			cacheUsed = true
-			if sliceVal, ok := val.([]models.FoodItem); ok {
-				foodItems = sliceVal
+		cacheKey := fmt.Sprintf("food_item:%s", tenantID)
+		_, err := h.CacheClient.Get(ctx, cacheKey)
 
-				h.Logger.Info(ctx, "GetFoodItems: Retrieved from cache", "count", len(foodItems))
-				return
-			} else {
-				h.Logger.Debug(ctx, "GetFoodItems: Cache miss (not a []models.FoodItem) - loading from database")
-			}
-		} else {
-			h.Logger.Debug(ctx, "GetFoodItems: Cache error - loading from database", "error", err)
-			cacheUsed = false
-		}
-	}
-
-	// Cache miss or no cache - load from database
-	if !cacheUsed || len(foodItems) == 0 {
-		foodItems, total, err := h.Repo.ListByTenant(tenantID, int(page), int(limit))
-		if err != nil {
-			h.Logger.Error(ctx, "Failed to retrieve food items", "error", err)
-			c.JSON(http.StatusInternalServerError, views.ErrorResponse{Success: false, ErrorCode: "DATABASE_ERROR", Message: "Failed to retrieve food items", Timestamp: time.Now().UTC()})
+		if err == nil {
+			// Cache hit - return cached value
+			// Since we can't iterate a single FoodItem in Get(), we fall back to DB for lists
+			h.Logger.Info(ctx, "GetFoodItems: Single item retrieved from cache", "cache_key", cacheKey)
 			return
 		}
 
-		h.Logger.Info(ctx, "GetFoodItems: Successfully retrieved from database", "count", len(foodItems), "total", total)
+		h.Logger.Debug(ctx, "GetFoodItems: Cache miss - loading from database")
+	}
 
-		// Update cache with new data if available
-		if h.CacheClient != nil {
-			key := fmt.Sprintf("food_catalog.food_details:%s", tenantID)
-			err := h.CacheClient.Set(ctx, key, foodItems, cache.WithTTL(30*time.Minute))
-			if err != nil {
-				h.Logger.Error(ctx, "Failed to update cache", "error", err)
-			}
+	// Cache miss or no cache - load from database
+	foodItems, total, err := h.Repo.ListByTenant(tenantID, int(page), int(limit))
+	if err != nil {
+		h.Logger.Error(ctx, "Failed to retrieve food items", "error", err)
+		c.JSON(http.StatusInternalServerError, views.ErrorResponse{Success: false, ErrorCode: "DATABASE_ERROR", Message: "Failed to retrieve food items", Timestamp: time.Now().UTC()})
+		return
+	}
+
+	h.Logger.Info(ctx, "GetFoodItems: Successfully retrieved from database", "count", len(foodItems), "total", total)
+
+	// Update cache with new data if available
+	for i := range foodItems {
+		cacheKey := fmt.Sprintf("food_item:%s", strings.ReplaceAll(foodItems[i].ID, "-", "_"))
+		err = h.CacheClient.Set(ctx, cacheKey, foodItems[i], cache.WithTTL(30*time.Minute))
+		if err != nil {
+			h.Logger.Error(ctx, "Failed to update cache", "error", err, "item_id", foodItems[i].ID)
 		}
-		h.Logger.Info(ctx, "GetFoodItems: Retrieved from database (cache was unavailable)")
 	}
 
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Food items retrieved successfully", "data": foodItems})
@@ -141,7 +132,7 @@ func (h *FoodItemHandler) CreateFoodItem(c *gin.Context) {
 		Category:    createRequest.Category,
 		TenantID:    tenantID,
 		CreatedAt:   &createdTime,
-		UpdatedAt:   &createdTime,
+		UpdatedAt:    &createdTime,
 	}
 
 	h.Logger.Info(c.Request.Context(), "CreateFoodItem: Generated UUID for food item", "uuid", foodItem.ID)

@@ -9,6 +9,7 @@ import (
 	logger "github.com/pareshvernekar/homecooked/internal/logger"
 	"github.com/pareshvernekar/homecooked/internal/models"
 	repo "github.com/pareshvernekar/homecooked/internal/repository"
+	"github.com/stretchr/testify/require"
 )
 
 // MockFoodCategoryRepository is a mock implementation for testing
@@ -51,10 +52,7 @@ func TestNewFoodCategoryService(t *testing.T) {
 	l := logger.NewLogger()
 
 	service := NewFoodCategoryService(mockRepo, l, &MockCacheClient{})
-
-	if service == nil {
-		t.Error("Expected NewFoodCategoryService to return a valid service")
-	}
+	require.NotNil(t, service, "Expected NewFoodCategoryService to return a valid service")
 }
 
 // TestListCategories_Success tests successful retrieval of all food categories
@@ -67,20 +65,9 @@ func TestListCategories_Success(t *testing.T) {
 
 	categoriesResult, err := service.ListCategories("tenant_1")
 
-	if err != nil {
-		t.Errorf("Expected no error, got: %v", err)
-	}
-
-	if len(categoriesResult) != 1 {
-		t.Errorf("Expected 1 category, got: %d", len(categoriesResult))
-	}
-
-	expectedKeys := []string{"vegetarian"}
-	for i, catItem := range categoriesResult {
-		if catItem.Name != expectedKeys[i] {
-			t.Errorf("Category[%d]: Expected name %s, got: %s", i, expectedKeys[i], catItem.Name)
-		}
-	}
+	require.NoError(t, err, "Expected no error, got: %v", err)
+	require.Len(t, categoriesResult, 1, "Expected 1 category, got: %d", len(categoriesResult))
+	require.Equal(t, "vegetarian", categoriesResult[0].Name, "Expected name 'vegetarian', got: %s", categoriesResult[0].Name)
 }
 
 // TestListCategories_EmptyResult tests successful retrieval with empty category list
@@ -92,14 +79,8 @@ func TestListCategories_EmptyResult(t *testing.T) {
 	service := NewFoodCategoryService(mockRepo, l, &MockCacheClient{})
 
 	categoriesResult, err := service.ListCategories("tenant_1")
-
-	if err != nil {
-		t.Errorf("Expected no error with empty result, got: %v", err)
-	}
-
-	if len(categoriesResult) != 0 {
-		t.Errorf("Expected empty slice, got: %d items", len(categoriesResult))
-	}
+	require.NoError(t, err, "Expected no error with empty result, got: %v", err)
+	require.Len(t, categoriesResult, 0, "Expected empty slice, got: %d items", len(categoriesResult))
 }
 
 // TestGetCategoryByID_Success tests successful retrieval of a single category by ID
@@ -111,18 +92,9 @@ func TestGetCategoryByID_Success(t *testing.T) {
 	service := NewFoodCategoryService(mockRepo, l, &MockCacheClient{})
 
 	category, err := service.GetCategoryByID("cat1", "tenant_1")
-
-	if err != nil {
-		t.Errorf("Expected no error for valid ID, got: %v", err)
-	}
-
-	if category == nil {
-		t.Error("Expected non-nil category for valid ID")
-	}
-
-	if category.Name != "vegetarian" {
-		t.Errorf("Expected name 'vegetarian', got: %s", category.Name)
-	}
+	require.NoError(t, err, "Expected no error for valid ID, got: %v", err)
+	require.NotNil(t, category, "Expected non-nil category for valid ID")
+	require.Equal(t, "vegetarian", category.Name, "Expected name 'vegetarian', got: %s", category.Name)
 }
 
 // TestGetCategoryByID_NotFound tests retrieval when category doesn't exist
@@ -133,10 +105,7 @@ func TestGetCategoryByID_NotFound(t *testing.T) {
 
 	service := NewFoodCategoryService(mockRepo, l, &MockCacheClient{})
 
-	category, _ := service.GetCategoryByID("non-existent-id", "tenant_1")
-
-	// Service returns (nil, nil) when category not found - caller should check for this
-	if category != nil {
-		t.Errorf("Expected nil category for non-existent ID, got: %v", category)
-	}
+	category, err := service.GetCategoryByID("non-existent-id", "tenant_1")
+	require.NoError(t, err, "Expected no error for non-existent ID, got: %v", err)
+	require.Nil(t, category, "Expected nil category for non-existent ID")
 }

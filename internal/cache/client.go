@@ -8,22 +8,46 @@ import (
 	"time"
 
 	gocache "github.com/eko/gocache/lib/v4/cache"
-	"github.com/eko/gocache/lib/v4/store"
-	goCacheStore "github.com/eko/gocache/store/go_cache/v4"
+	lib_store "github.com/eko/gocache/lib/v4/store"
+	go_cache "github.com/eko/gocache/store/go_cache/v4"
 	logger "github.com/pareshvernekar/homecooked/internal/logger"
-	"github.com/pareshvernekar/homecooked/internal/models"
-	repo "github.com/pareshvernekar/homecooked/internal/repository"
-	inmemoryCache "github.com/patrickmn/go-cache"
+	models "github.com/pareshvernekar/homecooked/internal/models"
 )
 
-// Define SetOption as a generic function type or example
+// =============================================================================
+// GENERIC ENTITY INTERFACE (Go 1.18+ Generics)
+// =============================================================================
+type EntityRepository[T any] interface {
+	ListByTenant(tenantID string) ([]T, error)
+}
+
+// =============================================================================
+// ENTITY WITH CACHE KEY SUPPORT (Interface Constraint for Generic Cache Client)
+// =============================================================================
+type CacheableEntity interface {
+	GetCacheKey() string
+	ID() string
+}
+
+// =============================================================================
+// MULTI-ENTITY CACHE INTERFACE (Go 1.18+ Generics)
+// =============================================================================
+type TypedClient[T any] interface {
+	Get(ctx context.Context, key string) (T, error)
+	Set(ctx context.Context, key string, value T, options ...SetOption) error
+	Has(key string) bool
+	PostInitialize(ctx context.Context, tenantID string, repos map[string]any) error
+}
+
+// SetOption is a function that modifies cache set options.
 type SetOption func(*Option) error
 
+// Option holds configuration for cache operations.
 type Option struct {
 	TTL time.Duration
 }
 
-// WithTTL correctly declares [T any] on the method receiver to avoid "undefined T"
+// WithTTL sets the TTL duration for a cache operation.
 func WithTTL(d time.Duration) SetOption {
 	return func(o *Option) error {
 		o.TTL = d
@@ -31,118 +55,194 @@ func WithTTL(d time.Duration) SetOption {
 	}
 }
 
-// Define CacheClient interface that all implementations must satisfy
-type Client interface {
-	Get(ctx context.Context, key string) (any, error)
-	Set(ctx context.Context, key string, value any, options ...SetOption) error
-	Has(key string) bool
-	PostInitialize(ctx context.Context, tenantID string, repository repo.FoodCategoryRepository) error
+// ConvertSetOption converts SetOption to lib_store.Option
+func ConvertSetOption(opt SetOption) lib_store.Option {
+
+	var optImpl Option
+	err := opt(&optImpl)
+	if err != nil {
+		return nil // or handle error as needed
+	}
+	if optImpl.TTL != 0 {
+		return lib_store.WithExpiration(optImpl.TTL)
+	}
+	return nil
 }
 
-// Define cache entry structure for TTL tracking
-type CacheEntry struct {
-	Key        string // Cache key in format: entity_type:id
-	Value      interface{}  // Stored value
-	AccessedAt time.Time    // When last accessed (for eviction)
-	TTL        time.Duration // Time-to-live duration
+// =============================================================================
+// GENERIC CACHE CLIENT FOR MULTI-ENTITY SUPPORT (Go 1.18+)
+// Uses gocache with generic type parameter T for values. Keys are always strings.
+// =============================================================================
+type GenericCacheClient[T any] struct {
+	store    CacheStore     // Type-safe cache store - underlying implementation is gocache.Cache[any]
+	config   CacheConfig    // Per-entity TTL overrides and global settings
+	logger   *logger.Logger // Structured logging
+	maxItems int            // LRU eviction threshold
+	repos    map[string]any // Map of entity_type -> repository
+	mu       sync.RWMutex   // Protects concurrent access to repos map
 }
 
-// cacheImpl implements the Client interface using eko/gocache library.
-type cacheImpl struct {
-	store                  gocache.Cache[any]           // Memory store backend from go_cache flavor
-	config                 CacheConfig                  // Configuration for per-operation behavior
-	foodCategoryRepository repo.FoodCategoryRepository  // Repository for loading data on cache miss
-	logger                 *logger.Logger                // Structured logging - Logger type defined below
-
-	mu sync.RWMutex // Thread safety lock
-
+// CacheStore wraps gocache.Cache[any] to provide a store interface for the generic cache client.
+type CacheStore struct {
+	store *gocache.Cache[any]
 }
 
-// NewCacheClient creates a new cache client with the given configuration.
-func NewCacheClient(config CacheConfig, logger *logger.Logger, foodCategoryRepo repo.FoodCategoryRepository) (Client, error) {
-	if config.DefaultTTL <= 0 {
-		return nil, fmt.Errorf("invalid default TTL: must be positive")
-	}
-
-	if config.MaxItems <= 0 {
-		return nil, fmt.Errorf("invalid max items: must be positive")
-	}
-	gocacheClient := inmemoryCache.New(config.DefaultTTL, config.DefaultTTL*2)
-	gocacheStore := goCacheStore.NewGoCache(gocacheClient)
-	cacheManager := gocache.New[any](gocacheStore)
-
-	if cacheManager == nil {
-		return nil, fmt.Errorf("failed to create cache manager")
-	}
-
-	return &cacheImpl{store: *cacheManager, config: config, logger: logger, foodCategoryRepository: foodCategoryRepo}, nil
-}
-
-// Get retrieves cached value for the given key or loads missing data from source.
-func (c *cacheImpl) Get(ctx context.Context, key string) (any, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	parts := strings.Split(key, ":")
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid cache key format: %s (expected entity:type:ID)", key)
-	}
-
-	entityId := parts[1]
-
-	var value any
-	hit, err := c.store.Get(ctx, entityId)
-
+// Get retrieves a value from the underlying gocache store.
+func (cs *CacheStore) Get(ctx context.Context, key any) (interface{}, error) {
+	result, err := cs.store.Get(ctx, key)
 	if err != nil {
 		return nil, fmt.Errorf("cache get failed: %w", err)
 	}
-
-	if hit == nil {
-		ttl, exists := c.config.TTLOverrides[parts[0]]
-		if !exists {
-			ttl = c.config.DefaultTTL
-		}
-
-		c.logger.Info(ctx, "Cache miss for key: %s - would load from DB", key)
-
-		ttlOption := store.WithExpiration(ttl)
-		err = c.store.Set(ctx, entityId, nil, ttlOption)
-		if err != nil {
-			return nil, fmt.Errorf("cache set after load failed: %w", err)
-		}
-	} else {
-		value = hit
-	}
-
-	return value, nil
+	return result, nil
 }
 
-// Set stores a value with the given TTL and custom options (overrides global defaults).
-func (c *cacheImpl) Set(ctx context.Context, key string, value any, options ...SetOption) error {
+// Set stores a value in the underlying gocache store.
+func (cs *CacheStore) Set(ctx context.Context, key any, val interface{}, options ...SetOption) error {
+	var setOpts []lib_store.Option
+	for _, opt := range options {
+		storeOpt := ConvertSetOption(opt)
+		setOpts = append(setOpts, storeOpt)
+	}
+
+	err := cs.store.Set(ctx, key, val, setOpts...)
+	if err != nil {
+		return fmt.Errorf("cache set failed: %w", err)
+	}
+	return nil
+}
+
+// PostInitialize initializes the cache with data from a tenant's repositories.
+func (c *GenericCacheClient[T]) PostInitialize(ctx context.Context, tenantID string, repos map[string]any) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	if len(repos) == 0 {
+		return fmt.Errorf("no repositories registered for GenericCacheClient")
+	}
+
+	c.repos = repos
+
+	for entityTypeName, repo := range c.repos {
+		items, err := c.fetchItemsForEntity(entityTypeName, repo, tenantID)
+		if err != nil {
+			return fmt.Errorf("failed to fetch %s for tenant %s: %w", entityTypeName, tenantID, err)
+		}
+
+		if len(items) == 0 {
+			continue // No entities to cache for this type
+		}
+
+		for _, item := range items {
+			key := c.extractCacheKey(item)
+
+			ttl, exists := c.config.TTLOverrides[entityTypeName]
+			if !exists {
+				ttl = c.config.DefaultTTL
+			}
+
+			var setErr error
+			switch typedItem := any(item).(type) {
+			case T:
+				setErr = c.store.Set(ctx, key, typedItem, WithTTL(ttl))
+			default:
+				return fmt.Errorf("item is not of expected type T")
+			}
+
+			if setErr != nil {
+				return fmt.Errorf("failed to cache %s: %w", entityTypeName, setErr)
+			}
+		}
+	}
+
+	return nil
+}
+
+// fetchItemsForEntity safely fetches items for a specific entity type using runtime type assertion.
+func (c *GenericCacheClient[T]) fetchItemsForEntity(entityTypeName string, repo any, tenantID string) ([]T, error) {
+	switch r := repo.(type) {
+	case EntityRepository[T]:
+		return r.ListByTenant(tenantID)
+	default:
+		return nil, fmt.Errorf("repository for %s does not implement EntityRepository[T]", entityTypeName)
+	}
+}
+
+// extractCacheKey safely extracts the cache key from a typed entity.
+func (c *GenericCacheClient[T]) extractCacheKey(item T) string {
+	var key string
+	if ce, ok := any(item).(CacheableEntity); ok {
+		key = ce.GetCacheKey()
+	}
+	return key
+}
+
+// Get retrieves a value of type T from the cache using entity_type:ID format.
+func (c *GenericCacheClient[T]) Get(ctx context.Context, key string) (T, error) {
+	var zero T
+	parts := strings.Split(key, ":")
+	if len(parts) != 2 {
+		return zero, fmt.Errorf("invalid cache key format: %s (expected entity_type:ID)", key)
+	}
+
+	entityType := parts[0]
+
+	c.mu.RLock()
+	cachedRepo, exists := c.repos[entityType]
+	c.mu.RUnlock()
+	if !exists {
+		return zero, fmt.Errorf("repository for entity type '%s' not found", entityType)
+	}
+
+	hit, err := c.store.Get(ctx, key)
+	if err != nil {
+		return zero, fmt.Errorf("cache get failed: %w", err)
+	}
+
+	// Check if cache miss and load from repository if needed
+	if hit == nil {
+		items, err := c.fetchItemsForEntity(entityType, cachedRepo, "placeholder")
+		if err != nil {
+			return zero, fmt.Errorf("failed to fetch from repository: %w", err)
+		}
+		if len(items) == 0 {
+			return zero, fmt.Errorf("no items found for entity ID %s", key)
+		}
+
+		// Store the item back with TTL
+		ttl, exists := c.config.TTLOverrides[entityType]
+		if !exists {
+			ttl = c.config.DefaultTTL
+		}
+		var setErr error
+		switch typedItem := any(items[0]).(type) {
+		case T:
+			setErr = c.store.Set(ctx, key, typedItem, WithTTL(ttl))
+		default:
+			return zero, fmt.Errorf("item is not of expected type T")
+		}
+
+		if setErr != nil {
+			return zero, fmt.Errorf("failed to cache %s: %w", entityType, setErr)
+		}
+	}
+
+	var result T
+	result, ok := hit.(T)
+	if !ok {
+		return zero, fmt.Errorf("cached value is not of type %s", entityType)
+	}
+
+	return result, nil
+}
+
+// Set stores a value of type T in the cache with the given key and TTL.
+func (c *GenericCacheClient[T]) Set(ctx context.Context, key string, value T, options ...SetOption) error {
 	parts := strings.Split(key, ":")
 	if len(parts) != 2 {
 		return fmt.Errorf("invalid cache key format: %s", key)
 	}
 
-	entityId := parts[1]
-
-	o := &Option{}
-	for _, opt := range options {
-		err := opt(o)
-		if err != nil {
-			return fmt.Errorf("failed to apply option: %w", err)
-		}
-	}
-	if o.TTL == 0 {
-		o.TTL = c.config.DefaultTTL
-	}
-
-	ttlOption := store.WithExpiration(o.TTL)
-	err := c.store.Set(ctx, entityId, value, ttlOption)
-
+	err := c.store.Set(ctx, key, value, options...)
 	if err != nil {
 		return fmt.Errorf("failed to set cache entry: %w", err)
 	}
@@ -150,61 +250,54 @@ func (c *cacheImpl) Set(ctx context.Context, key string, value any, options ...S
 	return nil
 }
 
-// Has checks if a cache key exists without loading the full value (O(1) lookup).
-func (c *cacheImpl) Has(key string) bool {
+// Has checks if a value of type T exists in the cache using entity_type:ID format.
+func (c *GenericCacheClient[T]) Has(key string) bool {
 	parts := strings.Split(key, ":")
 	if len(parts) != 2 {
-		return false // Invalid format = doesn't exist
+		return false
 	}
 
-	entityId := parts[1]
-	hit, _ := c.store.Get(context.Background(), entityId)
+	c.mu.RLock()
+	var err error
+	_, err = c.store.Get(context.Background(), key)
+	c.mu.RUnlock()
+	if err != nil {
+		return false
+	}
 
-	return hit != nil
+	return true
 }
 
-// PostInitialize initializes the cache with food category data from the database at startup.
-// This method queries the food_category table and populates the in-memory cache using entity_type:name key convention (e.g., "food-category:vegetarian").
-// Tenant isolation is enforced - each tenant's cache contains only their own categories via parameterized query with RLS.
-func (c *cacheImpl) PostInitialize(ctx context.Context, tenantID string, repository repo.FoodCategoryRepository) error {
-	var categories []models.FoodCategory
+// =============================================================================
+// FACTORY FUNCTIONS (Go 1.18+ Generics)
+// =============================================================================
 
-	// Query food categories for this tenant using parameterized query with Row-Level Security (RLS)
-	// RLS policies ensure only data for current tenant is returned
-	categories, err := repository.ListByTenant(tenantID)
-	if err != nil {
-		return fmt.Errorf("failed to fetch food categories: %w", err)
+// NewGenericFoodCategoryCache creates a new GenericCacheClient for FoodCategory entity type.
+func NewGenericFoodCategoryCache(config CacheConfig, l *logger.Logger) TypedClient[models.FoodCategory] {
+	store := CacheStore{
+		store: gocache.New[any](go_cache.NewGoCache(nil)),
 	}
 
-	if len(categories) == 0 {
-		c.logger.Info(ctx, "No food categories found for tenant: %s", tenantID)
-		return nil
+	return &GenericCacheClient[models.FoodCategory]{
+		store:    store,
+		config:   config,
+		logger:   l,
+		maxItems: config.MaxItems,
+		repos:    make(map[string]any),
+	}
+}
+
+// NewGenericFoodItemCache creates a new GenericCacheClient for FoodItem entity type.
+func NewGenericFoodItemCache(config CacheConfig, l *logger.Logger) TypedClient[models.FoodItem] {
+	store := CacheStore{
+		store: gocache.New[any](go_cache.NewGoCache(nil)),
 	}
 
-	// Populate cache with each category using entity_type:name key format (e.g., "food-category:vegetarian")
-	for _, cat := range categories {
-		key := cat.GetCacheKey()
-		value := &models.FoodCategory{
-			ID:          cat.ID,
-			TenantID:    cat.TenantID,
-			Name:        cat.Name,
-			Description: cat.Description,
-			CreatedAt:   cat.CreatedAt,
-			UpdatedAt:   cat.UpdatedAt,
-		}
-
-		// Apply TTL from config override or use global default (30m)
-		ttl := c.config.TTLOverrides[fmt.Sprintf("food_category_%s", cat.Name)]
-		if ttl == 0 {
-			ttl = c.config.DefaultTTL
-		}
-
-		err := c.store.Set(ctx, key, value, store.WithExpiration(ttl))
-		if err != nil {
-			return fmt.Errorf("failed to cache category %s: %w", cat.Name, err)
-		}
+	return &GenericCacheClient[models.FoodItem]{
+		store:    store,
+		config:   config,
+		logger:   l,
+		maxItems: config.MaxItems,
+		repos:    make(map[string]any),
 	}
-
-	c.logger.Info(ctx, "Cache initialized with food categories for tenant %s: %d categories\n", tenantID, len(categories))
-	return nil
 }
