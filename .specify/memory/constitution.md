@@ -47,6 +47,7 @@ All endpoints must adhere to REST principles, using appropriate HTTP methods and
 ### Programming Language
 - **Go (Golang)**: For backend API development.
 
+
 ### Frameworks
 - **Gin/Gonic**: For building the RESTful API.
 - **GORM**: For database interactions.
@@ -61,4 +62,13 @@ All endpoints must adhere to REST principles, using appropriate HTTP methods and
 - Follow semantic versioning (MAJOR.MINOR.PATCH).
 - Maintain backward compatibility where possible.
 
-**Version**: 1.0.0 | **Ratified**: April 25, 2026 | **Last Amended**: April 25, 2026
+
+## Coding Standards & Code Quality
+
+### Go Development Guidelines
+* **Style Guide**: The AI coding agent MUST strictly follow the official idiomatic paradigms defined in [Effective Go](https://go.dev/doc/effective_go).All Go code must conform to the Effective Go guidelines. Prioritize idiomatic patterns, clear documentation, and standard MixedCaps naming conventions.
+* **Formatting**: All code must automatically pass `gofmt` and `go vet` checks.
+* **Concurrency**: Utilize Go channels and goroutines exclusively according to the "Share memory by communicating" principle outlined in Effective Go.
+* **Error Handling**: Follow standard Go error-handling practices (explicit error checks, no panic/recover loops for predictable errors).
+
+**Version**: 1.0.0 | **Ratified**: April 25, 2026 | **Last Amended**: May 30, 2026

@@ -20,8 +20,8 @@ CREATE TABLE IF NOT EXISTS tenants (
     name VARCHAR(100) NOT NULL,
     domain VARCHAR(255) UNIQUE NOT NULL,
     status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active','suspended','deleted')),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT,
+    updated_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT,
     is_active BOOLEAN DEFAULT TRUE
 );
 
@@ -31,8 +31,8 @@ CREATE TABLE IF NOT EXISTS tenant_configurations (
     default_language VARCHAR(10) DEFAULT 'en',
     tax_rate DECIMAL(5,2) DEFAULT 0.00,
     delivery_fee DECIMAL(10,2) DEFAULT 0.00,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT,
+    updated_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT
 );
 
 -- 3. User Management
@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS user_roles (
     tenant_id VARCHAR(50) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
     name VARCHAR(50) NOT NULL UNIQUE,
     description TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT
 );
 
 
@@ -56,8 +56,8 @@ CREATE TABLE IF NOT EXISTS users (
     phone VARCHAR(50),
     is_active BOOLEAN DEFAULT TRUE,
     is_admin BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT,
+    updated_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT,
     created_by VARCHAR(50) REFERENCES users(user_id) ON DELETE SET NULL,
     updated_by VARCHAR(50) REFERENCES users(user_id) ON DELETE SET NULL
 );
@@ -76,8 +76,8 @@ CREATE TABLE IF NOT EXISTS tenant_restaurants (
     postal_code VARCHAR(20) NOT NULL,
     country VARCHAR(100) NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT,
+    updated_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT,
     created_by VARCHAR(50) REFERENCES users(user_id) ON DELETE SET NULL
 );
 
@@ -90,8 +90,8 @@ CREATE TABLE IF NOT EXISTS tenant_restaurant_categories (
     parent_category_id VARCHAR(50) REFERENCES tenant_restaurant_categories(category_id) ON DELETE SET NULL,
     display_order INTEGER DEFAULT 0,
     is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT,
+    updated_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT,
     created_by VARCHAR(50) REFERENCES users(user_id) ON DELETE SET NULL
 );
 
@@ -106,8 +106,8 @@ CREATE TABLE IF NOT EXISTS tenant_menu_items (
     price DECIMAL(10, 2) NOT NULL, 
     currency VARCHAR(3) DEFAULT 'USD',
     is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT,
+    updated_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT,
     created_by VARCHAR(50) REFERENCES users(user_id) ON DELETE SET NULL
 );
 
@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS tenant_menu_item_images (
     alt_text VARCHAR(255),
     is_primary BOOLEAN DEFAULT FALSE,
     display_order INTEGER DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT
 );
 
 
@@ -128,8 +128,8 @@ CREATE TABLE IF NOT EXISTS food_category (
     tenant_id VARCHAR(50) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
     name VARCHAR(100) NOT NULL UNIQUE,
     description TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT,
+    updated_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT
 );
 
 CREATE TABLE IF NOT EXISTS food_item (
@@ -139,8 +139,8 @@ CREATE TABLE IF NOT EXISTS food_item (
     description TEXT,
     price DECIMAL(10,2) NOT NULL,
     category_id VARCHAR(50) REFERENCES food_category(id) ON DELETE RESTRICT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT,
+    updated_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT
 );
 
 CREATE TABLE IF NOT EXISTS menu_item (
@@ -153,8 +153,8 @@ CREATE TABLE IF NOT EXISTS menu_item (
     size VARCHAR(50),
     price DECIMAL(10,2) NOT NULL,
     sequence INTEGER NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT,
+    updated_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT
 );
 
 -- 6. Order Statuses
@@ -163,8 +163,8 @@ CREATE TABLE IF NOT EXISTS order_statuses (
     name VARCHAR(50) NOT NULL,
     description TEXT,
     is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT,
+    updated_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT
 );
 
 CREATE INDEX IF NOT EXISTS idx_order_statuses_name ON order_statuses(name);
@@ -193,12 +193,12 @@ CREATE TABLE IF NOT EXISTS tenant_orders (
     delivery_country VARCHAR(100) NOT NULL,
     delivery_instructions TEXT,
     pickup_location VARCHAR(255),
-    estimated_delivery_time TIMESTAMP WITH TIME ZONE,
-    actual_delivery_time TIMESTAMP WITH TIME ZONE,
+    estimated_delivery_time BIGINT,
+    actual_delivery_time BIGINT,
     notes TEXT,
     is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT,
+    updated_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT,
     created_by VARCHAR(50) REFERENCES users(user_id) ON DELETE SET NULL,
     updated_by VARCHAR(50) REFERENCES users(user_id) ON DELETE SET NULL
 );
@@ -213,7 +213,7 @@ CREATE TABLE IF NOT EXISTS tenant_order_items (
     tax_rate DECIMAL(5,2) DEFAULT 0.00,
     total_price DECIMAL(10,2) NOT NULL,
     notes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT
 );
 
 -- 8. Payments
@@ -233,9 +233,9 @@ CREATE TABLE IF NOT EXISTS tenant_payments (
     transaction_id VARCHAR(100),
     payment_gateway VARCHAR(100),
     status VARCHAR(20) DEFAULT 'pending',
-    payment_date TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    payment_date BIGINT,
+    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT,
+    updated_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT
 );
 
 -- 9. Reviews
@@ -249,8 +249,8 @@ CREATE TABLE IF NOT EXISTS tenant_reviews (
     title VARCHAR(255),
     review_text TEXT,
     is_approved BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT,
+    updated_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT
 );
 
 -- 10. Indexes
@@ -275,7 +275,7 @@ CREATE INDEX IF NOT EXISTS idx_user_roles_tenant_id_name ON user_roles(tenant_id
 -- 11. Triggers: update_timestamp
 CREATE OR REPLACE FUNCTION update_timestamp() RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
+    NEW.updated_at = (EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000)::BIGINT;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -432,28 +432,28 @@ INSERT INTO tenant_menu_items (menu_item_id, tenant_id, restaurant_id, category_
 ON CONFLICT (menu_item_id) DO NOTHING;
 
 -- Spec-aligned categories and items (shared/singular)
-INSERT INTO food_category (id, tenant_id, name, description) VALUES
-('fc_1', 'tenant_1', 'vegetarian', 'Vegetarian based items')
+INSERT INTO food_category (id, tenant_id, name, description,is_active) VALUES
+('fc_1', 'tenant_1', 'vegetarian', 'Vegetarian based items', TRUE)
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO food_category (id, tenant_id, name, description) VALUES
-('fc_2', 'tenant_1', 'non-vegetarian', 'Non-vegetarian based items')
+INSERT INTO food_category (id, tenant_id, name, description,is_active) VALUES
+('fc_2', 'tenant_1', 'non-vegetarian', 'Non-vegetarian based items', TRUE)
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO food_category (id, tenant_id, name, description) VALUES
-('fc_3', 'tenant_1', 'vegan', 'Vegan based items')
+INSERT INTO food_category (id, tenant_id, name, description,is_active) VALUES
+('fc_3', 'tenant_1', 'vegan', 'Vegan based items', TRUE)
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO food_category (id, tenant_id, name, description) VALUES
-('fc_4', 'tenant_1', 'gluten-free', 'Gluten-free based items')
+INSERT INTO food_category (id, tenant_id, name, description,is_active) VALUES
+('fc_4', 'tenant_1', 'gluten-free', 'Gluten-free based items', TRUE)
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO food_category (id, tenant_id, name, description) VALUES
-('fc_5', 'tenant_1', 'dairy-free', 'Dairy-free based items')
+INSERT INTO food_category (id, tenant_id, name, description,is_active) VALUES
+('fc_5', 'tenant_1', 'dairy-free', 'Dairy-free based items', TRUE)
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO food_category (id, tenant_id, name, description) VALUES
-('fc_6', 'tenant_1', 'jain', 'Jain diet items')
+INSERT INTO food_category (id, tenant_id, name, description,is_active) VALUES
+('fc_6', 'tenant_1', 'jain', 'Jain diet items', TRUE)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO food_item (id, tenant_id, name, description, price, category_id) VALUES

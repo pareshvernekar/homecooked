@@ -1,17 +1,14 @@
 package models
 
-import (
-	"time"
-)
-
 // FoodCategory represents a food category in the database (e.g., vegetarian, non-vegetarian, vegan)
 type FoodCategory struct {
-	ID           string          `db:"id"`
-	TenantID     string          `db:"tenant_id"`
-	Name         string          `db:"name"`
-	Description   *string         `db:"description"`
-	CreatedAt    time.Time       `db:"created_at"`
-	UpdatedAt    time.Time       `db:"updated_at"`
+	ID          string `db:"id"`
+	TenantID    string `db:"tenant_id"`
+	Name        string `db:"name"`
+	Description string `db:"description"`
+	IsActive    bool   `db:"is_active"`
+	CreatedAt   int64  `db:"created_at"`
+	UpdatedAt   int64  `db:"updated_at"`
 }
 
 // IsValid validates that the FoodCategory has required fields
