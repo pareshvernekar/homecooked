@@ -8,7 +8,6 @@ import (
 	cache "github.com/pareshvernekar/homecooked/internal/cache"
 	logger "github.com/pareshvernekar/homecooked/internal/logger"
 	"github.com/pareshvernekar/homecooked/internal/models"
-	repo "github.com/pareshvernekar/homecooked/internal/repository"
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,24 +16,58 @@ type MockFoodCategoryRepository struct {
 	categories []models.FoodCategory
 }
 
-func (m *MockFoodCategoryRepository) ListByTenant(tenantID string) ([]models.FoodCategory, error) {
+func (m *MockFoodCategoryRepository) ListByTenant(ctx context.Context, tenantID string) ([]models.FoodCategory, error) {
 	return m.categories, nil
 }
 
+func (m *MockFoodCategoryRepository) GetByID(ctx context.Context, tenantID string, id string) (*models.FoodCategory, error) {
+	for _, cat := range m.categories {
+		if cat.ID == id && cat.TenantID == tenantID {
+			return &cat, nil
+		}
+	}
+	return nil, nil
+}
+
+func (m *MockFoodCategoryRepository) Create(ctx context.Context, category *models.FoodCategory) error {
+	m.categories = append(m.categories, *category)
+	return nil
+}
+
+func (m *MockFoodCategoryRepository) Update(ctx context.Context, category *models.FoodCategory) (int64, error) {
+	for i, cat := range m.categories {
+		if cat.ID == category.ID && cat.TenantID == category.TenantID {
+			m.categories[i] = *category
+			return 1, nil
+		}
+	}
+	return 0, nil
+}
+
+func (m *MockFoodCategoryRepository) Delete(ctx context.Context, tenantID string, id string) (int64, error) {
+	for i, cat := range m.categories {
+		if cat.ID == id && cat.TenantID == tenantID {
+			m.categories = append(m.categories[:i], m.categories[i+1:]...)
+			return 1, nil
+		}
+	}
+	return 0, nil
+}
+
 var categories = []models.FoodCategory{
-	{ID: "cat1", TenantID: "tenant_1", Name: "vegetarian", Description: func() *string { s := "plant-based"; return &s }(), CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()},
-	{ID: "cat2", TenantID: "tenant_1", Name: "non-vegetarian", Description: func() *string { s := "meat and dairy"; return &s }(), CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()},
-	{ID: "cat3", TenantID: "tenant_1", Name: "vegan", Description: func() *string { s := "no animal products"; return &s }(), CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()},
+	{ID: "cat1", TenantID: "tenant_1", Name: "vegetarian", Description: "plant-based", CreatedAt: time.Now().UTC().UnixMilli(), UpdatedAt: time.Now().UTC().UnixMilli()},
+	{ID: "cat2", TenantID: "tenant_1", Name: "non-vegetarian", Description: "meat and dairy", CreatedAt: time.Now().UTC().UnixMilli(), UpdatedAt: time.Now().UTC().UnixMilli()},
+	{ID: "cat3", TenantID: "tenant_1", Name: "vegan", Description: "no animal products", CreatedAt: time.Now().UTC().UnixMilli(), UpdatedAt: time.Now().UTC().UnixMilli()},
 }
 
 // MockCacheClient is a mock implementation of the cache interface for testing
 type MockCacheClient struct{}
 
-func (mc *MockCacheClient) Get(ctx context.Context, key string) (any, error) {
-	return nil, nil
+func (mc *MockCacheClient) Get(ctx context.Context, key string) (models.FoodCategory, error) {
+	return models.FoodCategory{}, nil
 }
 
-func (mc *MockCacheClient) Set(ctx context.Context, key string, value any, options ...cache.SetOption) error {
+func (mc *MockCacheClient) Set(ctx context.Context, key string, value models.FoodCategory, options ...cache.SetOption) error {
 	return nil
 }
 
@@ -42,7 +75,7 @@ func (mc *MockCacheClient) Has(key string) bool {
 	return false
 }
 
-func (mc *MockCacheClient) PostInitialize(ctx context.Context, tenantID string, repository repo.FoodCategoryRepository) error {
+func (mc *MockCacheClient) PostInitialize(ctx context.Context, tenantID string, repos map[string]any) error {
 	return nil
 }
 
@@ -106,6 +139,6 @@ func TestGetCategoryByID_NotFound(t *testing.T) {
 	service := NewFoodCategoryService(mockRepo, l, &MockCacheClient{})
 
 	category, err := service.GetCategoryByID("non-existent-id", "tenant_1")
-	require.NoError(t, err, "Expected no error for non-existent ID, got: %v", err)
+	require.Error(t, err, "Expected error for non-existent ID")
 	require.Nil(t, category, "Expected nil category for non-existent ID")
 }

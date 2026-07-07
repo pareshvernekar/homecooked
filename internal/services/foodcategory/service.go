@@ -3,26 +3,34 @@ package foodcategory
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	cache "github.com/pareshvernekar/homecooked/internal/cache"
 	logger "github.com/pareshvernekar/homecooked/internal/logger"
 	models "github.com/pareshvernekar/homecooked/internal/models"
-	repo "github.com/pareshvernekar/homecooked/internal/repository"
 )
+
+type FoodCategoryRepository interface {
+	ListByTenant(ctx context.Context, tenantID string) ([]models.FoodCategory, error)
+	GetByID(ctx context.Context, tenantID string, id string) (*models.FoodCategory, error)
+	Create(ctx context.Context, category *models.FoodCategory) error
+	Update(ctx context.Context, category *models.FoodCategory) (int64, error)
+	Delete(ctx context.Context, tenantID string, id string) (int64, error)
+}
 
 // FoodCategoryService handles food category business logic
 type FoodCategoryService struct {
-	repository     repo.FoodCategoryRepository
-	logger          *logger.Logger
-	cacheClient    cache.TypedClient[models.FoodCategory]
+	repository  FoodCategoryRepository
+	logger      *logger.Logger
+	cacheClient cache.TypedClient[models.FoodCategory]
 }
 
 // NewFoodCategoryService creates a new food category service instance with dependency injection
-func NewFoodCategoryService(repo repo.FoodCategoryRepository, l *logger.Logger, c cache.TypedClient[models.FoodCategory]) *FoodCategoryService {
+func NewFoodCategoryService(repo FoodCategoryRepository, l *logger.Logger, c cache.TypedClient[models.FoodCategory]) *FoodCategoryService {
 	return &FoodCategoryService{
-		repository:   repo,
-		logger:       l,
-		cacheClient:  c,
+		repository:  repo,
+		logger:      l,
+		cacheClient: c,
 	}
 }
 
@@ -31,7 +39,7 @@ func (s *FoodCategoryService) ListCategories(tenantID string) ([]models.FoodCate
 	ctx := context.Background()
 	s.logger.Info(ctx, "ListCategories: Fetching food categories for tenant", "tenant_id", tenantID)
 
-	categories, err := s.repository.ListByTenant(tenantID)
+	categories, err := s.repository.ListByTenant(ctx, tenantID)
 	if err != nil {
 		s.logger.Error(ctx, "ListCategories: Failed to retrieve food categories from database", "tenant_id", tenantID, "error", err)
 		return nil, err
@@ -59,7 +67,7 @@ func (s *FoodCategoryService) GetCategoryByID(categoryID string, tenantID string
 	ctx := context.Background()
 	s.logger.Info(ctx, "GetCategoryByID: Fetching food category by ID", "category_id", categoryID, "tenant_id", tenantID)
 
-	categories, err := s.repository.ListByTenant(tenantID)
+	categories, err := s.repository.ListByTenant(ctx, tenantID)
 	if err != nil {
 		s.logger.Error(ctx, "GetCategoryByID: Failed to retrieve food categories from database", "category_id", categoryID, "error", err)
 		return nil, err
@@ -93,7 +101,7 @@ func (s *FoodCategoryService) GetCategoryByName(categoryName, tenantID string) (
 	s.logger.Info(ctx, "GetCategoryByName: Resolving category name to ID", "category_name", categoryName, "tenant_id", tenantID)
 
 	// Fetch all categories for the tenant
-	categories, err := s.repository.ListByTenant(tenantID)
+	categories, err := s.repository.ListByTenant(ctx, tenantID)
 	if err != nil {
 		s.logger.Error(ctx, "GetCategoryByName: Failed to retrieve food categories", "error", err)
 		return "", fmt.Errorf("failed to fetch categories for tenant %s: %w", tenantID, err)
@@ -103,25 +111,23 @@ func (s *FoodCategoryService) GetCategoryByName(categoryName, tenantID string) (
 	for _, cat := range categories {
 		if strings.EqualFold(cat.Name, categoryName) {
 			s.logger.Info(ctx, "GetCategoryByName: Category name resolved to ID",
-					"category_name", cat.Name,
-					"category_id", cat.ID)
+				"category_name", cat.Name,
+				"category_id", cat.ID)
 
-				// Cache the category if cache client is available
+			// Cache the category if cache client is available
 			if s.cacheClient != nil {
 				cacheErr := s.cacheClient.Set(ctx, cat.GetCacheKey(), cat)
 				if cacheErr != nil {
 					s.logger.Error(ctx, "GetCategoryByName: Failed to cache food category after resolution",
-							"key", cat.GetCacheKey(), "error", cacheErr)
-						// Don't fail - caching should not block the operation
-					}
+						"key", cat.GetCacheKey(), "error", cacheErr)
+					// Don't fail - caching should not block the operation
 				}
+			}
 
 			return cat.ID, nil
-			}
 		}
 	}
-
 	s.logger.Error(ctx, "GetCategoryByName: Category name not found in tenant's catalog",
-			"category_name", categoryName, "tenant_id", tenantID)
+		"category_name", categoryName, "tenant_id", tenantID)
 	return "", fmt.Errorf("category '%s' not found in tenant %s's catalog", categoryName, tenantID)
 }
