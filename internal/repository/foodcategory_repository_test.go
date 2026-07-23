@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"fmt"
 	"regexp"
 	"testing"
@@ -524,7 +523,7 @@ func TestPostgreSQLFoodCategoryRepository_Delete_FailNotExists(t *testing.T) {
 		Logger:   logger.NewLogger(),
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	rowsAffected, err := repo.Delete(ctx, "tenant-123", "cat-nonexistent")
 
 	require.NoError(t, err)

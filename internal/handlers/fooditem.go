@@ -20,7 +20,7 @@ import (
 
 // FoodItemHandler handles food item related operations
 type FoodItemHandler struct {
-	Repo       repository.FoodItemRepository
+	Repo        repository.FoodItemRepository
 	Logger      *logger.Logger
 	CacheClient cache.TypedClient[models.FoodItem]
 }
@@ -28,8 +28,8 @@ type FoodItemHandler struct {
 // NewFoodItemHandler creates a new instance of FoodItemHandler with dependency injection
 func NewFoodItemHandler(repo repository.FoodItemRepository, l *logger.Logger, c cache.TypedClient[models.FoodItem]) *FoodItemHandler {
 	return &FoodItemHandler{
-		Repo:       repo,
-		Logger:     l,
+		Repo:        repo,
+		Logger:      l,
 		CacheClient: c,
 	}
 }
@@ -119,20 +119,22 @@ func (h *FoodItemHandler) CreateFoodItem(c *gin.Context) {
 		return
 	}
 
-	h.Logger.Info(c.Request.Context(), "CreateFoodItem: Validation passed", "name", createRequest.Name, "category", createRequest.Category)
+	h.Logger.Info(c.Request.Context(), "CreateFoodItem: Validation passed", "name", createRequest.Name, "category", createRequest.CategoryName, "price", createRequest.Price)
 
 	tenantID := c.GetString(middleware.TenantIDKey)
 	createdTime := time.Now().UTC()
 
+	// Normalize category name to lowercase slug format (e.g., "Vegetarian" -> "vegetarian")
+	normalizedCategory := models.NormalizeCategory(createRequest.CategoryName)
 	foodItem := models.FoodItem{
 		ID:          uuid.NewString(),
 		Name:        createRequest.Name,
 		Description: createRequest.Description,
 		Price:       createRequest.Price,
-		Category:    createRequest.Category,
+		Category:    normalizedCategory,
 		TenantID:    tenantID,
 		CreatedAt:   &createdTime,
-		UpdatedAt:    &createdTime,
+		UpdatedAt:   &createdTime,
 	}
 
 	h.Logger.Info(c.Request.Context(), "CreateFoodItem: Generated UUID for food item", "uuid", foodItem.ID)

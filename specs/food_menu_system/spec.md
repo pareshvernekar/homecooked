@@ -35,19 +35,68 @@ All entities are scoped to a specific tenant via the tenant ID field.
 - **Order**: Represents a user's order for a specific tenant.
 - **Notification**: Represents a notification sent to users for a specific tenant.
 
-### Relationships
-- A **Tenant** can have multiple **FoodCatalog**, **WeeklyMenu**, **CateringMenu**, **Order**, and **Notification** instances.
-- All entities are scoped to a specific **Tenant** via the tenant ID field.
-- A **FoodCatalog** contains multiple **FoodItem** instances for a specific tenant.
-- A **FoodItem** can be included in multiple **WeeklyMenu** and **CateringMenu** instances via **MenuItem** entries for a specific tenant.
-- A **WeeklyMenu** is composed of **MenuItem** instances, each referencing a **FoodItem** with specific size, price, and sequence for a specific tenant.
-- A **CateringMenu** is composed of **MenuItem** instances, each referencing a **FoodItem** with specific size, price, and sequence for a specific tenant.
-- Each **MenuItem** in a **WeeklyMenu** or **CateringMenu** has a unique sequence number to define the order of items for a specific tenant.
-- A **User** can place multiple **Order** instances for a specific tenant.
-- An **Order** can include multiple **MenuItem** instances from either a **WeeklyMenu** or **CateringMenu** for a specific tenant.
-- An **Order** can have one or more **Notification** instances for a specific tenant.
+### Service Architecture and Dependency Injection
 
-## Data Models
+#### Service Layers
+The system follows a layered service architecture with clear separation of concerns:
+
+1. **Repository Layer** (`internal/repository/`): Data access abstraction
+2. **Service Layer** (`internal/services/`): Business logic implementation
+3. **Handler Layer** (`internal/handlers/`): HTTP request processing
+
+#### Dependency Injection Pattern
+
+All services use constructor injection for testability and loose coupling:
+
+```go
+// FoodItemService requires FoodCategoryService (REQUIRED - not optional)
+type FoodCategoryService interface {
+    GetCategoryByName(ctx context.Context, name string, tenantID string) (*models.FoodCategory, error)
+}
+
+type FoodItemService struct {
+    repository     FoodItemRepository
+    logger         *logger.Logger
+    cacheClient    cache.TypedClient[*models.FoodItem]
+    categoryService FoodCategoryService  // Required dependency for category name resolution
+}
+
+// NewFoodItemService creates a new instance with dependency injection.
+func NewFoodItemService(
+    repo FoodItemRepository,
+    l *logger.Logger,
+    c cache.TypedClient[*models.FoodItem],
+    catSvc FoodCategoryService,  // Required parameter - service cannot function without category resolution
+) *FoodItemService {
+    return &FoodItemService{
+        repository:      repo,
+        logger:          l,
+        cacheClient:     c,
+        categoryService: catSvc,  // Must be initialized for Create/Update operations
+    }
+}
+```
+
+**Why FoodCategoryService is REQUIRED (not optional)**:
+- `FoodItem.Create()` calls `categoryService.GetCategoryByName()` to resolve human-readable category names to database-compatible UUIDs
+- `FoodItem.Update()` calls `categoryService.GetCategoryByName()` when the category name changes
+- Without this dependency, the service cannot create or update food items with valid category references
+
+**Initialization Requirement**: All clients must pass a fully initialized `FoodCategoryService` instance. Service initialization will fail if `catSvc` is nil.
+
+#### Multi-Tenancy via Row-Level Security (RLS)
+All database operations automatically filter by tenant context:
+
+```sql
+-- Tenant context set in session
+SET app.current_tenant_id = :tenant_id;
+
+-- All queries automatically include tenant isolation
+SELECT * FROM food_item WHERE current_setting('app.current_tenant_id'::TEXT) = $1;
+```
+
+##### Domain Model
+
 
 ### WeeklyMenu
 A **WeeklyMenu** is a collection of **MenuItem** entries that define the daily tiffin menu for a specific period for a specific tenant.

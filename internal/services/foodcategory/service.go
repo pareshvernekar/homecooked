@@ -11,7 +11,7 @@ import (
 )
 
 type FoodCategoryRepository interface {
-	ListByTenant(ctx context.Context, tenantID string) ([]models.FoodCategory, error)
+	ListByTenant(ctx context.Context, tenantID string) ([]*models.FoodCategory, error)
 	GetByID(ctx context.Context, tenantID string, id string) (*models.FoodCategory, error)
 	Create(ctx context.Context, category *models.FoodCategory) error
 	Update(ctx context.Context, category *models.FoodCategory) (int64, error)
@@ -22,11 +22,11 @@ type FoodCategoryRepository interface {
 type FoodCategoryService struct {
 	repository  FoodCategoryRepository
 	logger      *logger.Logger
-	cacheClient cache.TypedClient[models.FoodCategory]
+	cacheClient cache.TypedClient[*models.FoodCategory]
 }
 
 // NewFoodCategoryService creates a new food category service instance with dependency injection
-func NewFoodCategoryService(repo FoodCategoryRepository, l *logger.Logger, c cache.TypedClient[models.FoodCategory]) *FoodCategoryService {
+func NewFoodCategoryService(repo FoodCategoryRepository, l *logger.Logger, c cache.TypedClient[*models.FoodCategory]) *FoodCategoryService {
 	return &FoodCategoryService{
 		repository:  repo,
 		logger:      l,
@@ -35,8 +35,8 @@ func NewFoodCategoryService(repo FoodCategoryRepository, l *logger.Logger, c cac
 }
 
 // ListCategories retrieves all food categories for a specific tenant
-func (s *FoodCategoryService) ListCategories(tenantID string) ([]models.FoodCategory, error) {
-	ctx := context.Background()
+func (s *FoodCategoryService) ListCategories(tenantID string) ([]*models.FoodCategory, error) {
+	ctx := t.Context()
 	s.logger.Info(ctx, "ListCategories: Fetching food categories for tenant", "tenant_id", tenantID)
 
 	categories, err := s.repository.ListByTenant(ctx, tenantID)
@@ -86,7 +86,7 @@ func (s *FoodCategoryService) GetCategoryByID(categoryID string, tenantID string
 				}
 			}
 
-			return &catItem, nil
+			return catItem, nil
 		}
 	}
 
@@ -96,7 +96,7 @@ func (s *FoodCategoryService) GetCategoryByID(categoryID string, tenantID string
 
 // GetCategoryByName retrieves a food category by its name (case-insensitive) and returns its ID for database persistence.
 // This method resolves user-friendly category names to database-required UUIDs.
-func (s *FoodCategoryService) GetCategoryByName(categoryName, tenantID string) (string, error) {
+func (s *FoodCategoryService) GetCategoryByName(categoryName, tenantID string) (*models.FoodCategory, error) {
 	ctx := context.Background()
 	s.logger.Info(ctx, "GetCategoryByName: Resolving category name to ID", "category_name", categoryName, "tenant_id", tenantID)
 
@@ -104,7 +104,7 @@ func (s *FoodCategoryService) GetCategoryByName(categoryName, tenantID string) (
 	categories, err := s.repository.ListByTenant(ctx, tenantID)
 	if err != nil {
 		s.logger.Error(ctx, "GetCategoryByName: Failed to retrieve food categories", "error", err)
-		return "", fmt.Errorf("failed to fetch categories for tenant %s: %w", tenantID, err)
+		return nil, fmt.Errorf("failed to fetch categories for tenant %s: %w", tenantID, err)
 	}
 
 	// Search for matching category (case-insensitive comparison)
@@ -124,10 +124,10 @@ func (s *FoodCategoryService) GetCategoryByName(categoryName, tenantID string) (
 				}
 			}
 
-			return cat.ID, nil
+			return cat, nil
 		}
 	}
 	s.logger.Error(ctx, "GetCategoryByName: Category name not found in tenant's catalog",
 		"category_name", categoryName, "tenant_id", tenantID)
-	return "", fmt.Errorf("category '%s' not found in tenant %s's catalog", categoryName, tenantID)
+	return nil, fmt.Errorf("category '%s' not found in tenant %s's catalog", categoryName, tenantID)
 }

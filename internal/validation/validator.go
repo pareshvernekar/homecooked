@@ -23,14 +23,14 @@ func validCategory(fl validator.FieldLevel) bool {
 }
 
 // ValidateFoodItemCreate validates a food item creation request
-func ValidateFoodItemCreate(data models.FoodItemCreateRequest) error {
+func ValidateFoodItemCreate(data *models.FoodItemCreateRequest) error {
 	// Field: Name (required string)
 	if err := validate.Var(data.Name, "required"); err != nil {
 		return err
 	}
 
-	// Field: Category (required + custom validation)
-	if !models.IsValidCategory(data.Category) {
+	// Field: CategoryName (required + custom validation)
+	if !models.IsValidCategory(data.CategoryName) {
 		return errors.New("category must be one of: vegetarian, non-vegetarian, vegan, dessert, beverage, appetizer, main_course, sides")
 	}
 
@@ -42,16 +42,15 @@ func ValidateFoodItemCreate(data models.FoodItemCreateRequest) error {
 		return errors.New("price must be greater than or equal to 0")
 	}
 
-	// Field: ImageURL (optional pointer)
-	_ = validate.Var(data.ImageURL, "omitempty")
+	// ImageURL and Avoidance are optional non-pointer fields - skip validation (omitted means empty string)
 
-	// Field: Avoidance (optional pointer)
-	if data.Avoidance != nil {
-		_ = validate.Var(*data.Avoidance, "required")
+	// IsVegetarian is an optional bool field
+	if data.IsVegetarian == nil {
+		return nil
 	}
-
-	// Field: IsVegetarian (optional bool)
-	_ = validate.Var(data.IsVegetarian, "omitempty")
+	if err := validate.Var(data.IsVegetarian, "required"); err != nil {
+		return err
+	}
 
 	// Field: AvailabilityStatus (required string)
 	if err := validate.Var(data.AvailabilityStatus, "required"); err != nil {
@@ -59,14 +58,28 @@ func ValidateFoodItemCreate(data models.FoodItemCreateRequest) error {
 	}
 
 	return nil
-
 }
 
 // ValidateFoodItemUpdate validates a food item update request
-func ValidateFoodItemUpdate(data models.FoodItemUpdateRequest) error {
-	rules := `omitempty,dive,name|required,categories|required,price|gte=0,image_url|nullable,avoidance|nullable,is_vegetarian|nullable,availability_status|`
-	errs := validate.Var(data, rules)
-	return errs
+func ValidateFoodItemUpdate(data *models.FoodItemUpdateRequest) error {
+	// Field: Name (required string)
+	if err := validate.Var(data.Name, "required"); err != nil {
+		return err
+	}
+
+	//Field: CategoryName (required + custom validation)
+	if !models.IsValidCategory(data.CategoryName) {
+		return errors.New("category must be one of: vegetarian, non-vegetarian, vegan, dessert, beverage, appetizer, main_course, sides")
+	}
+
+	// Field: Price (required, >= 0)
+	if err := validate.Var(data.Price, "required"); err != nil {
+		return err
+	}
+	if data.Price < 0 {
+		return errors.New("price must be greater than or equal to 0")
+	}
+	return nil
 }
 
 // IsValidAvailabilityStatus validates if a status is one of the allowed values

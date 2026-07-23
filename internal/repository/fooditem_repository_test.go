@@ -50,7 +50,7 @@ func TestPostgreSQLFoodItemRepository_ListByTenant_Success(t *testing.T) {
 	assert.NotNil(t, &firstItem, "Expected at least one item")
 	assert.Equal(t, "item-uuid-1", firstItem.ID)
 	assert.Equal(t, "Pizza", firstItem.Name)
-	assert.Equal(t, "Delicious pizza", *firstItem.Description)
+	assert.Equal(t, "Delicious pizza", firstItem.Description)
 	assert.Equal(t, 9.99, firstItem.Price)
 	assert.Equal(t, "cat-uuid-1", firstItem.CategoryID)
 
@@ -207,7 +207,7 @@ func TestPostgreSQLFoodItemRepository_ListByTenant_MultipleItemsWithNullDescript
 	assert.Equal(t, 2, len(items))
 
 	// First item has description
-	desc1 := *items[0].Description
+	desc1 := items[0].Description
 	assert.Equal(t, "Meat based burgers", desc1)
 
 	// Second item has NULL description - should be empty string due to sqlx behavior
@@ -247,7 +247,7 @@ func TestPostgreSQLFoodItemRepository_GetByID_Success(t *testing.T) {
 	assert.NotNil(t, item)
 	assert.Equal(t, "item-uuid-123", item.ID)
 	assert.Equal(t, "Pizza", item.Name)
-	assert.Equal(t, "Delicious pizza with cheese", *item.Description)
+	assert.Equal(t, "Delicious pizza with cheese", item.Description)
 	assert.Equal(t, 9.99, item.Price)
 	assert.Equal(t, "cat-uuid-1", item.CategoryID)
 
@@ -327,7 +327,7 @@ func TestPostgreSQLFoodItemRepository_Create_Success(t *testing.T) {
 		ID:                 "item-uuid-123",
 		TenantID:           "tenant-123",
 		Name:               "Burger",
-		Description:        &description,
+		Description:        description,
 		Price:              9.99,
 		CategoryID:         "cat-uuid-1",
 		IsVegetarian:       isVegetarian,
@@ -368,7 +368,7 @@ func TestPostgreSQLFoodItemRepository_Create_FailDuplicateID(t *testing.T) {
 		ID:                 "item-uuid-already-exists",
 		TenantID:           "tenant-123",
 		Name:               "Burger",
-		Description:        &description,
+		Description:        description,
 		Price:              9.99,
 		CategoryID:         "cat-uuid-1",
 		IsVegetarian:       isVegetarian,
@@ -411,7 +411,7 @@ func TestPostgreSQLFoodItemRepository_Create_FailDatabaseError(t *testing.T) {
 		ID:                 "item-uuid-new",
 		TenantID:           "tenant-123",
 		Name:               "Burger",
-		Description:        &description,
+		Description:        description,
 		Price:              9.99,
 		CategoryID:         "cat-uuid-1",
 		IsVegetarian:       isVegetarian,
@@ -452,7 +452,7 @@ func TestPostgreSQLFoodItemRepository_Update_Success(t *testing.T) {
 		ID:                 "item-uuid-123",
 		TenantID:           "tenant-123",
 		Name:               "Updated Burger Name",
-		Description:        &description,
+		Description:        description,
 		Price:              12.99,
 		CategoryID:         "cat-uuid-1",
 		IsVegetarian:       isVegetarian,
@@ -493,7 +493,7 @@ func TestPostgreSQLFoodItemRepository_Update_FailNotExists(t *testing.T) {
 		ID:                 "item-nonexistent",
 		TenantID:           "tenant-123",
 		Name:               "New Name",
-		Description:        &description,
+		Description:        description,
 		Price:              10.99,
 		CategoryID:         "cat-uuid-1",
 		IsVegetarian:       isVegetarian,
@@ -534,7 +534,7 @@ func TestPostgreSQLFoodItemRepository_Update_FailDatabaseError(t *testing.T) {
 		ID:                 "item-uuid-xyz",
 		TenantID:           "tenant-123",
 		Name:               "New Name",
-		Description:        &description,
+		Description:        description,
 		Price:              10.99,
 		CategoryID:         "cat-uuid-1",
 		IsVegetarian:       isVegetarian,

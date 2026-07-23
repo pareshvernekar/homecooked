@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pareshvernekar/homecooked/internal/models"
 	logger "github.com/pareshvernekar/homecooked/internal/logger"
+	"github.com/pareshvernekar/homecooked/internal/models"
 	repo "github.com/pareshvernekar/homecooked/internal/repository"
 	"github.com/stretchr/testify/assert"
 )
@@ -51,8 +51,8 @@ func TestNewCacheClient_SuccessfulCacheCreation(t *testing.T) {
 	catName := "vegetarian"
 	ttl := 30 * time.Minute
 	config := CacheConfig{
-		DefaultTTL:     ttl,
-		MaxItems:       1000,
+		DefaultTTL: ttl,
+		MaxItems:   1000,
 		TTLOverrides: map[string]time.Duration{
 			fmt.Sprintf("food_category_%s", catName): ttl,
 			"food_category_vegetarian":               ttl,
@@ -64,7 +64,7 @@ func TestNewCacheClient_SuccessfulCacheCreation(t *testing.T) {
 	assert.NoError(t, err, "Should create cache client successfully")
 
 	key := fmt.Sprintf("food_category_%s", catName)
-	val, exists := client.Get(context.Background(), key)
+	val, exists := client.Get(t.Context(), key)
 	assert.True(t, exists != nil, "Cache should return value for food category with entity_type:name key format")
 	_ = val
 }
@@ -72,8 +72,8 @@ func TestNewCacheClient_SuccessfulCacheCreation(t *testing.T) {
 // TestNewCacheClient_EmptyCategories tests cache client initialization with empty repository
 func TestNewCacheClient_EmptyCategories(t *testing.T) {
 	config := CacheConfig{
-		DefaultTTL:   30 * time.Minute,
-		MaxItems:     1000,
+		DefaultTTL: 30 * time.Minute,
+		MaxItems:   1000,
 	}
 	mockRepo := &MockFoodCategoryRepository{
 		categories: []models.FoodCategory{},
@@ -91,22 +91,22 @@ func TestNewCacheClient_EmptyCategories(t *testing.T) {
 // TestNewCacheClient_MultipleCategories tests cache client initialization with multiple food categories
 func TestNewCacheClient_MultipleCategories(t *testing.T) {
 	config := CacheConfig{
-		DefaultTTL:   30 * time.Minute,
-		MaxItems:     1000,
+		DefaultTTL: 30 * time.Minute,
+		MaxItems:   1000,
 	}
 
 	logger := logger.NewLogger()
 	client, err := NewCacheClient(config, logger, &MockFoodCategoryRepository{})
 	assert.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	mockRepo := &MockFoodCategoryRepository{
 		categories: []models.FoodCategory{
-				{ID: "cat1", TenantID: "tenant_1", Name: "vegetarian", Description: func() *string { s := "plant-based"; return &s }(), CreatedAt: time.Now(), UpdatedAt: time.Now()},
-				{ID: "cat2", TenantID: "tenant_1", Name: "non-vegetarian", Description: func() *string { s := "meat and dairy"; return &s }(), CreatedAt: time.Now(), UpdatedAt: time.Now()},
-				{ID: "cat3", TenantID: "tenant_1", Name: "vegan", Description: func() *string { s := "no animal products"; return &s }(), CreatedAt: time.Now(), UpdatedAt: time.Now()},
-			},
+			{ID: "cat1", TenantID: "tenant_1", Name: "vegetarian", Description: func() *string { s := "plant-based"; return &s }(), CreatedAt: time.Now(), UpdatedAt: time.Now()},
+			{ID: "cat2", TenantID: "tenant_1", Name: "non-vegetarian", Description: func() *string { s := "meat and dairy"; return &s }(), CreatedAt: time.Now(), UpdatedAt: time.Now()},
+			{ID: "cat3", TenantID: "tenant_1", Name: "vegan", Description: func() *string { s := "no animal products"; return &s }(), CreatedAt: time.Now(), UpdatedAt: time.Now()},
+		},
 	}
 
 	err = client.PostInitialize(ctx, "tenant_1", mockRepo)
