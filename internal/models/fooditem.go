@@ -8,19 +8,19 @@ import (
 
 // FoodItem represents a food menu item in the database
 type FoodItem struct {
-	ID                 string  `json:"id"`
-	TenantID           string  `json:"tenant_id"`
-	Name               string  `json:"name"`
-	Description        string  `json:"description,omitempty"`
-	CategoryID         string  `json:"category_id"`
-	Price              float64 `json:"price"`
-	ImageURL           string  `json:"image_url,omitempty"`
-	Avoidance          string  `json:"avoidance,omitempty"`
-	IsVegetarian       bool    `json:"is_vegetarian"`
-	AvailabilityStatus string  `json:"availability_status"`
-	CreatedAt          int64   `json:"created_at,omitempty"`
-	UpdatedAt          int64   `json:"updated_at,omitempty"`
-	DeliveredAt        int64   `json:"delivered_at,omitempty"`
+	ID                 string  `db:"id"`
+	TenantID           string  `db:"tenant_id"`
+	Name               string  `db:"name"`
+	Description        string  `db:"description,omitempty"`
+	CategoryID         string  `db:"category_id"`
+	Price              float64 `db:"price"`
+	ImageURL           string  `db:"image_url,omitempty"`
+	Avoidance          string  `db:"avoidance,omitempty"`
+	IsVegetarian       bool    `db:"is_vegetarian"`
+	AvailabilityStatus string  `db:"availability_status"`
+	CreatedAt          int64   `db:"created_at,omitempty"`
+	UpdatedAt          int64   `db:"updated_at,omitempty"`
+	DeliveredAt        int64   `db:"delivered_at,omitempty"`
 }
 
 // FoodItemCreateRequest represents the request payload for creating a food item
