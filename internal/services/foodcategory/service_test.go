@@ -16,8 +16,14 @@ type MockFoodCategoryRepository struct {
 	categories []models.FoodCategory
 }
 
-func (m *MockFoodCategoryRepository) ListByTenant(ctx context.Context, tenantID string) ([]models.FoodCategory, error) {
-	return m.categories, nil
+func (m *MockFoodCategoryRepository) ListByTenant(ctx context.Context, tenantID string) ([]*models.FoodCategory, error) {
+	var result []*models.FoodCategory
+	for _, cat := range m.categories {
+		if cat.TenantID == tenantID {
+			result = append(result, &cat)
+		}
+	}
+	return result, nil
 }
 
 func (m *MockFoodCategoryRepository) GetByID(ctx context.Context, tenantID string, id string) (*models.FoodCategory, error) {
@@ -63,11 +69,11 @@ var categories = []models.FoodCategory{
 // MockCacheClient is a mock implementation of the cache interface for testing
 type MockCacheClient struct{}
 
-func (mc *MockCacheClient) Get(ctx context.Context, key string) (models.FoodCategory, error) {
-	return models.FoodCategory{}, nil
+func (mc *MockCacheClient) Get(ctx context.Context, key string) (*models.FoodCategory, error) {
+	return &models.FoodCategory{}, nil
 }
 
-func (mc *MockCacheClient) Set(ctx context.Context, key string, value models.FoodCategory, options ...cache.SetOption) error {
+func (mc *MockCacheClient) Set(ctx context.Context, key string, value *models.FoodCategory, options ...cache.SetOption) error {
 	return nil
 }
 
@@ -96,7 +102,7 @@ func TestListCategories_Success(t *testing.T) {
 
 	service := NewFoodCategoryService(mockRepo, l, &MockCacheClient{})
 
-	categoriesResult, err := service.ListCategories("tenant_1")
+	categoriesResult, err := service.ListCategories(t.Context(), "tenant_1")
 
 	require.NoError(t, err, "Expected no error, got: %v", err)
 	require.Len(t, categoriesResult, 1, "Expected 1 category, got: %d", len(categoriesResult))
@@ -111,7 +117,7 @@ func TestListCategories_EmptyResult(t *testing.T) {
 
 	service := NewFoodCategoryService(mockRepo, l, &MockCacheClient{})
 
-	categoriesResult, err := service.ListCategories("tenant_1")
+	categoriesResult, err := service.ListCategories(t.Context(), "tenant_1")
 	require.NoError(t, err, "Expected no error with empty result, got: %v", err)
 	require.Len(t, categoriesResult, 0, "Expected empty slice, got: %d items", len(categoriesResult))
 }
@@ -124,7 +130,7 @@ func TestGetCategoryByID_Success(t *testing.T) {
 
 	service := NewFoodCategoryService(mockRepo, l, &MockCacheClient{})
 
-	category, err := service.GetCategoryByID("cat1", "tenant_1")
+	category, err := service.GetCategoryByID(t.Context(), "cat1", "tenant_1")
 	require.NoError(t, err, "Expected no error for valid ID, got: %v", err)
 	require.NotNil(t, category, "Expected non-nil category for valid ID")
 	require.Equal(t, "vegetarian", category.Name, "Expected name 'vegetarian', got: %s", category.Name)
@@ -138,7 +144,7 @@ func TestGetCategoryByID_NotFound(t *testing.T) {
 
 	service := NewFoodCategoryService(mockRepo, l, &MockCacheClient{})
 
-	category, err := service.GetCategoryByID("non-existent-id", "tenant_1")
+	category, err := service.GetCategoryByID(t.Context(), "non-existent-id", "tenant_1")
 	require.Error(t, err, "Expected error for non-existent ID")
 	require.Nil(t, category, "Expected nil category for non-existent ID")
 }

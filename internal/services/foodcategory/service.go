@@ -35,8 +35,7 @@ func NewFoodCategoryService(repo FoodCategoryRepository, l *logger.Logger, c cac
 }
 
 // ListCategories retrieves all food categories for a specific tenant
-func (s *FoodCategoryService) ListCategories(tenantID string) ([]*models.FoodCategory, error) {
-	ctx := t.Context()
+func (s *FoodCategoryService) ListCategories(ctx context.Context, tenantID string) ([]*models.FoodCategory, error) {
 	s.logger.Info(ctx, "ListCategories: Fetching food categories for tenant", "tenant_id", tenantID)
 
 	categories, err := s.repository.ListByTenant(ctx, tenantID)
@@ -63,8 +62,7 @@ func (s *FoodCategoryService) ListCategories(tenantID string) ([]*models.FoodCat
 }
 
 // GetCategoryByID retrieves a specific food category by its ID for the current tenant
-func (s *FoodCategoryService) GetCategoryByID(categoryID string, tenantID string) (*models.FoodCategory, error) {
-	ctx := context.Background()
+func (s *FoodCategoryService) GetCategoryByID(ctx context.Context, categoryID string, tenantID string) (*models.FoodCategory, error) {
 	s.logger.Info(ctx, "GetCategoryByID: Fetching food category by ID", "category_id", categoryID, "tenant_id", tenantID)
 
 	categories, err := s.repository.ListByTenant(ctx, tenantID)
@@ -96,8 +94,7 @@ func (s *FoodCategoryService) GetCategoryByID(categoryID string, tenantID string
 
 // GetCategoryByName retrieves a food category by its name (case-insensitive) and returns its ID for database persistence.
 // This method resolves user-friendly category names to database-required UUIDs.
-func (s *FoodCategoryService) GetCategoryByName(categoryName, tenantID string) (*models.FoodCategory, error) {
-	ctx := context.Background()
+func (s *FoodCategoryService) GetCategoryByName(ctx context.Context, categoryName, tenantID string) (*models.FoodCategory, error) {
 	s.logger.Info(ctx, "GetCategoryByName: Resolving category name to ID", "category_name", categoryName, "tenant_id", tenantID)
 
 	// Fetch all categories for the tenant
