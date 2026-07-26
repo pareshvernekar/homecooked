@@ -1,0 +1,603 @@
+# Cache Framework Specification
+
+**Feature Directory**: `specs/cache_framework`  
+**Created**: 2026-05-16  
+**Status**: In Progress  
+**Library**: github.com/eko/gocache with go-cache flavor  
+
+## Overview
+
+This feature introduces a centralized caching layer for the Home-Cooked food ordering system using the open-source eko/gocache library. The cache framework stores frequently accessed entity data in memory, enabling O(1) retrieval of related entities without repeated database queries during application runtime.
+
+The implementation uses the **go-cache** flavor from eko/gocache with an in-memory storage backend (sync.Map), providing a simple drop-in replacement that can be swapped for other backends (redis, memcached) when needed.
+
+### Why This Feature Is Needed
+
+As the Home-Cooked application scales, database queries become a bottleneck when fetching related entities:
+- Each menu item fetch requires additional JOINs to get food details
+- Order detail retrieval triggers multiple queries for order items and customer data
+- Concurrent users accessing the same data cause query explosion (N+1 problem)
+
+A caching layer solves this by loading data once at startup or on first access, then serving subsequent requests from memory. With eko/gocache's go-cache implementation, we get thread-safe access patterns without complex synchronization.
+
+---
+
+## User Scenarios & Testing
+
+### Scenario 1 - Fast Menu Item Retrieval (Priority: P0)
+
+**Description**: When users browse menu items and view their details, the system retrieves cached food data instead of querying the database for each related entity. Response times remain under 50ms regardless of concurrent user load.
+
+**User Flow**:
+1. User visits `/menu` page to view weekly menu
+2. Application fetches menu list with associated food item details from cache
+3. UI renders menu with prices, descriptions, and nutritional info instantly
+4. User clicks on menu item to see full details - served from cache again
+
+**Acceptance Criteria**:
+- Menu items load within 50ms P95 latency
+- Food details for each menu item retrieved without additional database queries after initial load
+- Concurrent user traffic (100+ simultaneous requests) does not increase response time variance
+
+**Testing Strategy**:
+- Load test: 100 concurrent requests to `/menu/{id}` endpoints
+- Measure P95, P99 latency and compare with baseline (without cache)
+- Expected improvement: 60% reduction in average response time
+
+---
+
+### Scenario 2 - Consistent Order Detail Loading (Priority: P1)
+
+**Description**: When multiple users simultaneously view order details, all requests receive consistent data from a shared cache instance. No race conditions or data inconsistency issues occur under concurrent load.
+
+**User Flow**:
+1. Customer service agent views order #12345 on `/orders/12345` page
+2. Order details including ordered items and customer info displayed
+3. Another agent opens the same order in a different window/tabs
+4. Both agents see identical, consistent data
+
+**Acceptance Criteria**:
+- All concurrent requests for the same entity return identical cached values
+- Cache invalidation properly handles order modifications (add/remove items)
+- No phantom reads or stale data visible to users due to race conditions
+
+**Testing Strategy**:
+- Concurrency test: 15+ simultaneous Get operations on the same cache key
+- Verify all requests receive same value (no partial updates, no race conditions)
+- Validate cache consistency assertions pass under stress
+
+---
+
+### Scenario 3 - Admin Cache Management Interface (Priority: P2)
+
+**Description**: Administrators can manually clear specific cache partitions or entire cache through a dedicated management interface. Cache health metrics are available for monitoring operations.
+
+**User Flow**:
+1. Admin accesses `/admin/cache` page to view cache status
+2. Page shows cache hit rate, memory usage, and partition sizes
+3. Admin clears expired entries with one click
+4. System reloads fresh data from database automatically (via configured TTL)
+
+**Acceptance Criteria**:
+- Admin can clear specific tenant partition in < 100ms
+- Cache hit/miss ratios reported every 5 minutes
+- Memory usage stays within configured limits per partition
+- Automatic eviction prevents unbounded memory growth
+
+**Testing Strategy**:
+- Manual test: Verify admin endpoints respond correctly
+- Automated: Monitor cache metrics over sustained load periods
+- Validate automatic TTL-based expiration removes stale entries
+
+---
+
+## Functional Requirements
+
+### FR-1: Caching Interface Definition
+
+**Requirement**: Application code interacts with cache through a clearly defined interface that supports basic operations.
+
+**Specification**:
+```go
+// Cache interface defines required methods (implementation via eko/gocache)
+type Cache interface {
+    // Set stores a value with optional TTL and error handler
+    Set[K, V](key Key[K], value V, options ...CacheSetOption[K, V]) error
+    
+    // Get retrieves a cached value or returns nil if missing
+    Get[K, V](key Key[K], getter Getter[V], options ...CacheGetOption[K, V]) (V, error)
+    
+    // GetIfExists retrieves cached value without loading from DB on miss
+    GetIfExists[K, V](key Key[K], getter Getter[V], options ...CacheGetOption[K, V]) (*V, error)
+    
+    // Del removes a key from cache
+    Del[K](key Key[K]) error
+    
+    // IsKeySet checks if a key exists in cache (bool)
+    IsKeySet[K](key Key[K], options ...CacheIsKeySetOption[K]) bool
+}
+```
+
+**Success Criteria**:
+- Interface is implemented by eko/gocache's go-cache type
+- Application code uses generic functions like `Get[K,V]`, `Set[K,V]` for type-safe operations
+- No implementation-specific types leak into application domain models
+
+---
+
+### FR-2: In-Memory Storage Backend
+
+**Requirement**: Cache backend stores data in memory using eko/gocache's go-cache with sync.Map.
+
+**Specification**:
+- Use `gocache.New(goCacheOptions...)` with memory store configuration
+- Storage type: gocache.MemoryStore (sync.Map-based, thread-safe)
+- Configuration allows swap to other backends via factory function pattern
+
+```go
+// Factory for creating cache instances with swappable backend
+func NewCache(ctx context.Context, options CacheConfig) (Cache, error) {
+    // Creates go-cache with MemoryStore (default)
+    // Can be overridden to use Redis/Memcached via different store implementations
+}
+
+// Example usage of MemoryStore configuration
+memoryStore := gocache.NewMemoryStore()
+cacheOptions := &gocache.Options{
+    Codec:       gocache.DefaultCodec,
+    Base:        memoryStore,
+    DisableCacheControl: true, // Simplified for in-memory
+}
+```
+
+**Success Criteria**:
+- Cache implementation uses eko/gocache with MemoryStore backend
+- Memory access patterns are optimized (sync.Map read-optimized)
+- Thread safety verified under concurrent access scenarios
+- Implementation can be swapped by changing factory function without API changes
+
+---
+
+### FR-3: Configuration Management
+
+**Requirement**: Cache behavior is configurable via YAML file or environment variables.
+
+**Specification**:
+```yaml
+cache:
+  default_ttl: "30m"              # Default TTL in minutes (30 min default)
+  max_memory_mb: 100              # Max memory per partition (MB)
+  eviction_strategy: "lru"        # lru, fifo, ttl-based
+  
+  # Per-entity TTL overrides (keyed by relation type identifier)
+  ttl_overrides:
+    weekly_menu.food_details: "30m"
+    order.menu_items: "15m"
+    food_catalog.categories: "24h"
+    catering_menu.items: "60m"
+  
+  # Memory limits per partition
+  memory_limits:
+    tenant_a: "50MB"
+    tenant_b: "100MB"
+```
+
+**Success Criteria**:
+- Config can be loaded from YAML file at startup
+- Environment variable override support via `CACHE_*` prefix (e.g., `CACHE_DEFAULT_TTL`)
+- Per-entity TTL overrides take precedence over default TTL
+- Memory limits enforceable (warn on approach, evict when exceeded)
+
+---
+
+### FR-4: Key Format Specification
+
+**Requirement**: Cache keys follow consistent naming convention to avoid collisions and ensure efficient lookups.
+
+**Specification**:
+Key format: `{relation_path}:{entity_key}`
+
+```go
+// Relation type constants for consistency
+const (
+    WeeklyMenuFoodDetails = "weekly_menu.food_details"
+    CateringMenuItems     = "catering_menu.items"
+    OrderMenuItems        = "order.menu_items"
+    FoodCatalogCategories = "food_catalog.categories"
+)
+
+// Entity key generation
+// Menu item 123 -> weekly_menu.food_details:123
+// Order 456 -> order.menu_items:456
+// Tenant A -> tenant_a
+```
+
+**Success Criteria**:
+- Keys use hyphenated relation path format (not underscores)
+- Entity key portion uses integer IDs consistently
+- Tenant ID prefix isolated from cache operations (middleware injects context)
+- Key generation functions documented for maintainers
+
+---
+
+### FR-5: TTL and Expiration Policy
+
+**Requirement**: Cached entries expire based on configurable time-to-live values. Stale entries are automatically removed to ensure data freshness.
+
+**Specification**:
+```go
+// Set options with TTL configuration
+cache.Set(
+    key, value, 
+    gocache.WithTTL(duration),           // Absolute TTL from Set time
+    gocache.WithExpiration(gocache.TTLPolicy(...))  // Or custom expiration policy
+)
+
+// Example: Menu items expire after 30 minutes
+menuItemsKey := fmt.Sprintf("%s:%d", WeeklyMenuFoodDetails, menuID)
+cache.Set(menuItemsKey, menuItemData, 
+    gocache.WithTTL(30 * time.Minute),
+)
+```
+
+**Per-Relation TTL Values**:
+
+| Relation Type | TTL | Rationale |
+|---------------|------|-----------|
+| `weekly_menu.food_details` | 30 minutes | Weekly menus updated daily; refresh buffer accounts for late edits |
+| `catering_menu.items` | 60 minutes | Catering orders same-day updates; generous margin for last-minute changes |
+| `order.menu_items` | 15 minutes | Order modifications frequent (cancellations, additions); quick refresh needed |
+| `food_catalog.categories` | 24 hours | Categories rarely change; daily cache refresh sufficient |
+
+**Success Criteria**:
+- TTL values configurable per relation type via YAML config
+- Automatic expiration removes stale entries without manual intervention
+- Expiration policy ensures data freshness within acceptable bounds
+- Default 30-minute TTL applies when not overridden
+
+---
+
+### FR-6: Error Handling Strategy
+
+**Requirement**: Cache operations handle errors gracefully with clear propagation to application code.
+
+**Specification**:
+```go
+// On cache miss, load from database and store (if enabled)
+func Get[K, V](key Key[K], getter Getter[V], options ...CacheGetOption[K, V]) (V, error) {
+    var value V
+    
+    // Try cached value first
+    if cached, exists := getFromMemory(key); exists {
+        return cached, nil
+    }
+    
+    // Cache miss - load from DB
+    value, err := getter()  // Database query
+    if err != nil {
+        return zeroValue, err  // Propagate database error
+    }
+    
+    // Store in cache for future requests
+    if options contains store_on_miss {
+        Set(key, value, ...)
+    }
+    
+    return value, nil
+}
+
+// On Set failure, log warning but don't block application
+func Set[K, V](key Key[K], value V, options ...CacheSetOption[K, V]) error {
+    err := store.Set(key, value) // Memory store operation
+    if err != nil {
+        // Log but continue - cache is best-effort optimization
+        log.Warnf("Failed to set cache entry %s: %v", key.String(), err)
+        return nil // Don't block on transient failures
+    }
+    return nil
+}
+```
+
+**Success Criteria**:
+- Get operations return database errors on both hit and miss scenarios
+- Set operations warn but don't fail requests (cache is optimization, not requirement)
+- Clear error messages distinguish cache issues from data issues
+- No silent data corruption on transient failures
+
+---
+
+### FR-7: Cache Initialization Pattern
+
+**Requirement**: Application initializes cache instance at startup and makes available globally via dependency injection.
+
+**Specification**:
+```go
+// Server initialization in main() or server setup
+func initCache(ctx context.Context, config CacheConfig) (Cache, error) {
+    // Create go-cache with MemoryStore backend
+    memoryStore := gocache.NewMemoryStore()
+    cache := gocache.New(
+        gocache.WithBase(memoryStore),
+        gocache.WithDisableCacheControl(true),  // In-memory, no headers needed
+        gocache.WithDecompress(),                // Enable compression for large values
+    )
+    
+    // Apply per-entity TTL overrides from config
+    for relation, ttl := range config.TTLOverrides {
+        cache.SetCustomExpiration(relationKey, func() time.Duration { return ttl })
+    }
+    
+    return cache, nil
+}
+
+// Global cache reference (via context propagation)
+var cache Cache = newGlobalCache()
+
+// Usage throughout application
+func GetMenuWithItems(ctx context.Context, tenantID string, menuID int64) ([]MenuItem, error) {
+    cache := getCacheFromContext(ctx)
+    key := fmt.Sprintf("weekly_menu.food_details:%d", menuID)
+    
+    menuItem, err := cache.Get(key, func() (string, error) {
+        // Database fallback on cache miss
+        return db.GetMenuItem(tenantID, menuID)
+    })
+    
+    if err != nil {
+        log.Warn("Cache miss for menu:", menuID)
+        return []MenuItem{}, nil  // Return empty instead of failing request
+    }
+    
+    return menuItem, nil
+}
+```
+
+**Success Criteria**:
+- Cache instance available via context throughout request lifecycle
+- Initialization errors logged but don't crash server (graceful degradation)
+- Global singleton pattern with lazy initialization option
+- Context propagation middleware injects cache into request contexts
+
+---
+
+### FR-8: Tenant Data Isolation (Multi-Tenant Support)
+
+**Requirement**: Multi-tenant deployments require separate cache partitions per tenant to prevent cross-tenant data exposure.
+
+**Specification**:
+```go
+// Middleware extracts tenant ID and selects appropriate partition
+func extractTenantFromContext(ctx context.Context) (string, error) {
+    tenantID := ctx.Value("tenant_id").(string)
+    if tenantID == "" {
+        return "", errors.New("tenant_id required")
+    }
+    return tenantID, nil
+}
+
+// Tenant-aware cache operations
+func GetTenantMenu(ctx context.Context, relationType string, key string) (interface{}, error) {
+    tenantID, err := extractTenantFromContext(ctx)
+    if err != nil {
+        return nil, err  // Security: no access without tenant
+    }
+    
+    // Full cache key includes tenant partition
+    fullKey := fmt.Sprintf("%s:%s", tenantID, relationType)
+    
+    cachedValue, err := cache.Get(fullKey, db.Getter)
+    if err != nil {
+        return nil, err
+    }
+    
+    return cachedValue, nil
+}
+
+// Optional: Separate cache instance per tenant (more isolation)
+var tenantCaches = make(map[string]Cache)
+
+func GetFromTenantCache(ctx context.Context, relationType string, key string) (interface{}, error) {
+    tenantID := extractTenantFromContext(ctx)
+    if _, exists := tenantCaches[tenantID]; !exists {
+        // Lazy initialize tenant partition
+        tenantCaches[tenantID] = newCacheInstance()
+    }
+    return tenantCaches[tenantID].Get(relationType, key)
+}
+```
+
+**Success Criteria**:
+- Tenant ID extracted from context via middleware injection
+- Cache keys include tenant prefix (e.g., `tenant_a:weekly_menu.food_details:123`)
+- Unauthorized cross-tenant access attempts logged and rejected
+- Memory usage per partition bounded (configurable)
+
+---
+
+### FR-9: Cache Hit Rate Monitoring
+
+**Requirement**: Application exposes cache performance metrics including hit rate, miss rate, and memory utilization.
+
+**Specification**:
+```go
+// Metrics tracking (using eko/gocache or custom counters)
+type CacheMetrics struct {
+    Hits       int64     // Total successful cache hits
+    Misses     int64     // Cache misses resulting in DB load
+    Evictions   int64     // LRU evictions due to memory pressure
+    SetErrors   int64     // Failed set operations (warnings)
+}
+
+// Middleware adds metrics collector
+func AddCacheMetrics(middlewares ...Middleware) {
+    metrics := &CacheMetrics{Hits: 0, Misses: 0, Evictions: 0}
+    
+    // Wrap cache methods to track statistics
+    Get := func(key Key[K], getter Getter[V], ...) (V, error) {
+        if hits, ok := atomic.AddInt64(&metrics.Hits, 1); !ok {
+            atomic.AddInt64(&metrics.Misses, 1)
+            return loadFromDB(getter()) // miss -> reload
+        }
+        
+        // Expose via HTTP endpoint or Prometheus metrics
+        cacheHealthHandler := http.HandlerFunc(func(w http.ResponseWriter) {
+            w.WriteHeader(http.StatusOK)
+            json.NewEncoder(w).Encode(map[string]interface{}{
+                "hits":      metric.Hits,
+                "misses":    metric.Misses,
+                "hit_rate":  float64(metric.Hits) / (float64(metric.Hits + metric.Misses)),
+                "evictions": metric.Evictions,
+            })
+        })
+    }
+}
+```
+
+**Success Criteria**:
+- Hit rate reported as percentage (hits / (hits + misses))
+- Miss rate tracks database load frequency (indicates cache effectiveness)
+- Metrics exposed via `/admin/cache-metrics` endpoint
+- Optional Prometheus integration for Grafana dashboards
+
+---
+
+### FR-10: Cache Swap Interface (Future Backends)
+
+**Requirement**: Application code remains compatible when switching from in-memory to other backends (redis, memcached).
+
+**Specification**:
+```go
+// Stable interface that abstracts backend implementation
+type CacheBackend interface {
+    Get[K, V](key Key[K], getter Getter[V]) (V, error)
+    Set[K, V](key Key[K], value V) error
+    Del[K](key Key[K]) error
+    IsKeySet[K](key Key[K]) bool
+    
+    // Backend-specific extensions
+    FlushAll() error           // Clear entire backend
+    Peek[K, V](key Key[K]) (V, bool)  // Get without storing on miss
+}
+
+// Factory function pattern for swapping implementations
+type CacheFactory interface {
+    Create(ctx context.Context, options CacheConfig) (CacheBackend, error)
+}
+
+// Default implementation using go-cache (MemoryStore)
+type GoCacheFactory struct{}
+
+func (f *GoCacheFactory) Create(ctx context.Context, config CacheConfig) (CacheBackend, error) {
+    // Returns eko/gocache instance with MemoryStore backend
+    cache := gocache.New(
+        gocache.WithBase(gocache.NewMemoryStore()),
+        gocache.WithDisableCacheControl(true),
+    )
+    
+    return cache, nil
+}
+
+// Alternative: Redis-backed implementation (future)
+type RedisCacheFactory struct {
+    Client *redis.Client // Would require redis client dependency
+}
+
+func (f *RedisCacheFactory) Create(ctx context.Context, config CacheConfig) (CacheBackend, error) {
+    // Connect to Redis, create cache with different store type
+    return gocache.New(
+        gocache.WithBase(f.createMemoryStoreFromRedis()),  // Or actual Redis-backed store
+    )
+}
+
+// Application uses factory function, not direct instance
+func createGlobalCache() (CacheBackend, error) {
+    factory := getRegisteredFactory()  // Could inject different implementation
+    return factory.Create(context.Background(), defaultConfig)
+}
+```
+
+**Success Criteria**:
+- Interface defined and stable - application code only references CacheBackend interface
+- Factory function pattern allows plugging in different implementations
+- Current go-cache (MemoryStore) works without changes to application logic
+- Documentation provided for swapping Redis implementation when needed
+
+---
+
+## Key Entities
+
+### Data Types Cached
+
+| Entity Type | Database Table | Cache Key Format | TTL | Use Case |
+|-------------|----------------|------------------|------|----------|
+| `FoodItem` | food_item | `weekly_menu.food_details:{item_id}` | 30m | Display food info in menus |
+| `MenuItem` | menu_items | `order.menu_items:{order_id}:{menu_item_id}` | 15m | Show order contents |
+| `OrderItem` | order_line_items | `catering_menu.items:{catering_id}` | 60m | Catering lookup |
+| `Category` | food_category | `food_catalog.categories:{cat_id}` | 24h | Filter/sort menu items |
+
+### Cache Key Examples
+
+```
+tenant_a:weekly_menu.food_details:123     # Item 123 from tenant A's weekly menu
+tenant_b:order.menu_items:987              # Menu items for order 987 (tenant B)
+tenant_a:catering_menu.items:555           # Catering items for catering order 555
+```
+
+### Cache Entry Structure (eko/gocache memory store format)
+
+```go
+type CacheEntry[K comparable, V any] struct {
+    Key      K                    // Cache key (includes tenant prefix)
+    Value    V                    // Actual data value
+    TTL      time.Duration        // Time-to-live duration
+    Created  time.Time            // When entry was created/stored
+    Expired  bool                 // Whether this should be evicted
+}
+
+// eko/gocache stores these in a map[K]CacheEntry[V] internally (sync.Map)
+```
+
+---
+
+## Success Criteria Summary
+
+**Quantitative Metrics**:
+- P95 latency for cached lookups: < 10ms
+- P99 latency under concurrent load (100+ users): < 50ms
+- Cache hit rate target: > 80% for frequently accessed entities
+- Memory usage per tenant partition: Configurable (default 50MB max)
+
+**Qualitative Measures**:
+- Application performance stable under concurrent user load (no variance increase from database query timing)
+- Consistent data returned across all users accessing same entity simultaneously
+- Admin can monitor cache health and clear stale entries via API
+- No data loss or corruption when cache temporarily unavailable
+
+**User-Facing Outcomes**:
+1. Menu pages load instantly regardless of how many items they contain
+2. Order detail views consistently reflect the latest available data under concurrent access
+3. Administrative cache controls allow proactive memory management
+4. System remains responsive during peak usage periods
+
+---
+
+## Dependencies & Constraints
+
+### Required Dependencies
+- **Primary**: github.com/eko/gocache/lib/v4/cache (interface definitions)
+- **Primary**: github.com/eko/gocache/store/memory/v2 (MemoryStore implementation)
+- Optional: context package for cancellation support
+
+### Assumptions Made
+- Application server runs on Linux/containerized environment with standard Go runtime
+- No existing cache infrastructure - fresh implementation required
+- Memory is sufficient to hold hot data (not a concern for expected 10+ concurrent users)
+- Context propagation middleware already extracts tenant_id from headers/jwt
+
+### Known Limitations
+- **No persistence**: Cache lost on server restart (addresses via startup preload in Phase 2)
+- **Memory bounds**: Configurable limits enforced; exceeds limit triggers eviction
+- **Single-server deployment**: Not designed for distributed caching across multiple servers (would require Redis swap)
+- **Compression**: Enabled by default to reduce memory footprint of large values
+
+---

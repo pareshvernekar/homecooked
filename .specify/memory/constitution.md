@@ -27,6 +27,7 @@ All endpoints must adhere to REST principles, using appropriate HTTP methods and
 1. Write unit tests for new features or bug fixes.
 2. Implement the feature to make the tests pass.
 3. Refactor the code while maintaining test coverage.
+4. Test files should be placed in same directory as the files being tested and should be suffixed with _test
 
 ### Code Review
 - All code changes must be reviewed by at least one other developer.
@@ -36,10 +37,16 @@ All endpoints must adhere to REST principles, using appropriate HTTP methods and
 - Automated tests must run on every commit.
 - Deployments must be automated and reversible.
 
+# Code Traceability Requirements
+- Every requirement block generated in `spec.md` must be assigned a unique ID using the tag pattern `[REQ-XXX]`.
+- During the implementation phase, the code editor must prepend or append inline code comments using the format `// @trace [REQ-XXX]` to any block of code that satisfies that specific requirement.
+- No code may be written or altered without an accompanying trace tag comment.
+
 ## Technology Stack
 
 ### Programming Language
 - **Go (Golang)**: For backend API development.
+
 
 ### Frameworks
 - **Gin/Gonic**: For building the RESTful API.
@@ -55,4 +62,13 @@ All endpoints must adhere to REST principles, using appropriate HTTP methods and
 - Follow semantic versioning (MAJOR.MINOR.PATCH).
 - Maintain backward compatibility where possible.
 
-**Version**: 1.0.0 | **Ratified**: April 25, 2026 | **Last Amended**: April 25, 2026
+
+## Coding Standards & Code Quality
+
+### Go Development Guidelines
+* **Style Guide**: The AI coding agent MUST strictly follow the official idiomatic paradigms defined in [Effective Go](https://go.dev/doc/effective_go).All Go code must conform to the Effective Go guidelines. Prioritize idiomatic patterns, clear documentation, and standard MixedCaps naming conventions.
+* **Formatting**: All code must automatically pass `gofmt` and `go vet` checks.
+* **Concurrency**: Utilize Go channels and goroutines exclusively according to the "Share memory by communicating" principle outlined in Effective Go.
+* **Error Handling**: Follow standard Go error-handling practices (explicit error checks, no panic/recover loops for predictable errors).
+
+**Version**: 1.0.0 | **Ratified**: April 25, 2026 | **Last Amended**: May 30, 2026

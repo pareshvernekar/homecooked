@@ -50,7 +50,7 @@ Design and set up the database schema with comprehensive multi-tenancy support a
    - Configure database connection with tenant-specific settings
 
 2. **Database Schema Design with Multi-Tenancy**
-   - Define database tables with tenant ID field: `food_items`, `categories`, `users`, `menus`, `menu_items`, `orders`, `order_items`, `notifications`
+   - Define database tables with tenant ID field: `food_item`, `categories`, `users`, `menus`, `menu_items`, `orders`, `order_items`, `notifications`
    - Add tenant_id column to all tables as foreign key to tenants table
    - Implement row-level security policies for tenant isolation
    - Create indexes on tenant_id columns for performance
@@ -216,7 +216,7 @@ Design and set up the database schema and migrations.
 
 ### Tasks
 1. **Database Schema Design**
-   - Define database tables: `food_items`, `categories`, `users`, `menus`, `menu_items`, `orders`, `order_items`, `notifications`
+   - Define database tables: `food_item`, `categories`, `users`, `menus`, `menu_items`, `orders`, `order_items`, `notifications`
    - Define relationships between tables
    - Create primary keys, foreign keys, and indexes
 
@@ -451,3 +451,55 @@ Monitor the application and handle maintenance tasks.
 - [ ] Approved for Implementation
 
 ---
+
+> **Database Scripts**
+
+The following SQL scripts have been created to support the database setup:
+
+```
+1_create_tables.sql
+- Creates all required tables with proper schema
+- Implements multi-tenancy with tenant_id field
+- Sets up foreign key relationships
+
+2_create_views.sql
+- Creates views for common queries
+- Optimizes frequently accessed data
+
+3_create_indexes.sql
+- Creates indexes for performance optimization
+- Focuses on frequently queried columns
+
+4_setup_orders_and_order_items.sql
+- Populates comprehensive sample orders
+- Includes realistic test data for all business scenarios
+- Ensures proper relationships between orders and menu items
+```
+
+**Database Initialization Process:**
+
+1. Execute table creation scripts in order
+2. Create views for optimized queries
+3. Add indexes for performance
+4. Populate sample data for testing
+
+**Multi-Tenancy Implementation:**
+
+- Each tenant has isolated data within the same schema
+- Tenant context is maintained through middleware
+- Row-level security ensures data isolation
+
+**Test Data Coverage:**
+
+The sample data includes:
+- Multiple restaurants with distinct menus
+- Various menu categories (burgers, sushi, salads, etc.)
+- Orders with multiple items and different statuses
+- Realistic order notes and timestamps
+- Tenant-specific data isolation
+
+**Dependencies:**
+
+- PostgreSQL with row-level security enabled
+- Proper tenant context middleware
+- Database connection pooling

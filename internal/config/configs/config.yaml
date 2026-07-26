@@ -1,0 +1,34 @@
+# Application Configuration
+app:
+  name: "Food Menu System"
+  debug: true
+  version: "0.1.0"
+
+# Server Configuration
+server:
+  host: "0.0.0.0"
+  port: 8080
+
+# Database Configuration - PostgreSQL without SSL
+database:
+  driver: "postgres"
+  host: "localhost"
+  port: 5432
+  name: "homecooked"
+  user: "postgres"
+  password: "postgres"
+
+# Tenant Configuration
+tenant:
+  id_header: "X-Tenant-ID"
+  default_id: "default_tenant"
+
+# Logging Configuration
+logging:
+  level: "info"
+  format: "json"
+
+# Tenant Isolation Configuration
+tenant_isolation:
+  enabled: true
+  strategy: "row_level_security"

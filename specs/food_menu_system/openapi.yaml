@@ -1,0 +1,1164 @@
+openapi: 3.0.3
+info:
+  title: Food Menu System API
+  description: REST API for managing food menus in a multi-tenant system.
+  version: 1.0.0
+servers:
+  - url: /api/v1
+    description: Base URL for all endpoints
+paths:
+  /food-items:
+    post:
+      summary: Create Food Item
+      description: Create a new food item for the tenant.
+      tags:
+        - Food Items
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              $ref: '#/components/schemas/FoodItemRequest'
+      responses:
+        "201":
+          description: Food item created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: '#/components/schemas/FoodItemResponse'
+        "400":
+          description: Invalid input data
+        "401":
+          description: Missing or invalid authentication token
+        "403":
+          description: Insufficient permissions
+        "409":
+          description: Food item already exists for this tenant
+  /food-items/{id}:
+    get:
+      summary: Get Food Item by ID
+      description: Retrieve details of a specific food item.
+      tags:
+        - Food Items
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Food item details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: '#/components/schemas/FoodItemResponse'
+    delete:
+      summary: Delete Food Item
+      description: Delete a specific food item.
+      tags:
+        - Food Items
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Food item deleted successfully
+  /categories:
+    post:
+      summary: Create Category
+      description: Create a new category for the tenant.
+      tags:
+        - Categories
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: Vegetarian
+                description:
+                  type: string
+                  example: Plant-based meals
+      responses:
+        "201":
+          description: Category created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: '#/components/schemas/CategoryResponse'
+        "400":
+          description: Invalid input data
+        "401":
+          description: Missing or invalid authentication token
+        "403":
+          description: Insufficient permissions
+  /categories/{id}:
+    get:
+      summary: Get Category by ID
+      description: Retrieve details of a specific category.
+      tags:
+        - Categories
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Category details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: '#/components/schemas/CategoryResponse'
+    delete:
+      summary: Delete Category
+      description: Delete a specific category.
+      tags:
+        - Categories
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Category deleted successfully
+  /weekly-menus:
+    post:
+      summary: Create Weekly Menu
+      description: Create a new weekly menu for the tenant.
+      tags:
+        - Weekly Menus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              $ref: '#/components/schemas/WeeklyMenuRequest'
+      responses:
+        "201":
+          description: Weekly menu created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  tenantId:
+                    type: string
+                    format: uuid
+                  name:
+                    type: string
+                  description:
+                    type: string
+                  startDate:
+                    type: string
+                    format: date-time
+                  endDate:
+                    type: string
+                    format: date-time
+                  menuItems:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        foodItemId:
+                          type: string
+                          format: uuid
+                        size:
+                          type: string
+                        price:
+                          type: number
+                        sequence:
+                          type: integer
+    get:
+      summary: List Weekly Menus
+      description: Retrieve a paginated list of weekly menus.
+      tags:
+        - Weekly Menus
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            maximum: 100
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Weekly menus retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        name:
+                          type: string
+                        startDate:
+                          type: string
+                          format: date-time
+                        endDate:
+                          type: string
+                          format: date-time
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                      limit:
+                        type: integer
+                      total:
+                        type: integer
+                      totalPages:
+                        type: integer
+  /orders:
+    post:
+      summary: Create Order
+      description: Create a new order for a user.
+      tags:
+        - Orders
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderRequest'
+      responses:
+        "201":
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        "400":
+          description: Invalid input
+        "401":
+          description: Unauthorized
+    get:
+      summary: List Orders
+      description: Retrieve a paginated list of orders for a user or admin.
+      tags:
+        - Orders
+      parameters:
+        - $ref: '#/components/parameters/statusQuery'
+        - $ref: '#/components/parameters/pageQuery'
+        - $ref: '#/components/parameters/limitQuery'
+      responses:
+        "200":
+          description: Orders retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderList'
+
+  /orders/{orderId}:
+    get:
+      summary: Get Order by ID
+      description: Retrieve a specific order by its ID
+      tags:
+        - Orders
+      parameters:
+        - $ref: '#/components/parameters/orderIdPath'
+      responses:
+        "200":
+          description: Order details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        "404":
+          description: Order not found
+    patch:
+      summary: Update Order Status
+      description: Update the status of an order
+      tags:
+        - Orders
+      parameters:
+        - $ref: '#/components/parameters/orderIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderStatusUpdate'
+      responses:
+        "200":
+          description: Order status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        "400":
+          description: Invalid input
+        "404":
+          description: Order not found
+
+  /notifications:
+    post:
+      summary: Create Notification
+      description: Create a notification for a user (admin only).
+      tags:
+        - Notifications
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationRequest'
+      responses:
+        "201":
+          description: Notification created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+    get:
+      summary: List Notifications
+      description: Retrieve a paginated list of notifications for a user.
+      tags:
+        - Notifications
+      parameters:
+        - $ref: '#/components/parameters/userIdQuery'
+        - $ref: '#/components/parameters/typeQuery'
+        - $ref: '#/components/parameters/isReadQuery'
+        - $ref: '#/components/parameters/pageQuery'
+        - $ref: '#/components/parameters/limitQuery'
+      responses:
+        "200":
+          description: Notifications retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationList'
+
+  /notifications/{notificationId}:
+    get:
+      summary: Get Notification by ID
+      description: Retrieve a specific notification
+      tags:
+        - Notifications
+      parameters:
+        - $ref: '#/components/parameters/notificationIdPath'
+      responses:
+        "200":
+          description: Notification details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        "404":
+          description: Notification not found
+    delete:
+      summary: Delete Notification
+      description: Delete a specific notification
+      tags:
+        - Notifications
+      parameters:
+        - $ref: '#/components/parameters/notificationIdPath'
+      responses:
+        "204":
+          description: Notification deleted successfully
+  /weekly-menus/{id}:
+    get:
+      summary: Get Weekly Menu by ID
+      description: Retrieve details of a specific weekly menu.
+      tags:
+        - Weekly Menus
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Weekly menu details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  tenantId:
+                    type: string
+                    format: uuid
+                  name:
+                    type: string
+                  description:
+                    type: string
+                  startDate:
+                    type: string
+                    format: date-time
+                  endDate:
+                    type: string
+                    format: date-time
+                  menuItems:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        foodItemId:
+                          type: string
+                          format: uuid
+                        size:
+                          type: string
+                        price:
+                          type: number
+                        sequence:
+                          type: integer
+    
+  /catering-menus:
+    post:
+      summary: Create Catering Menu
+      description: Create a new catering menu for the tenant.
+      tags:
+        - Catering Menus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              $ref: '#/components/schemas/CateringMenuRequest'
+      responses:
+        "201":
+          description: Catering menu created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  tenantId:
+                    type: string
+                    format: uuid
+                  name:
+                    type: string
+                  description:
+                    type: string
+                  eventDate:
+                    type: string
+                    format: date-time
+                  eventLocation:
+                    type: string
+                  menuItems:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        foodItemId:
+                          type: string
+                          format: uuid
+                        size:
+                          type: string
+                        price:
+                          type: number
+                        sequence:
+                          type: integer
+                  createdAt:
+                    type: string
+                    format: date-time
+                  updatedAt:
+                    type: string
+                    format: date-time
+    get:
+      summary: List Catering Menus
+      description: Retrieve a paginated list of catering menus. Due to Row-Level Security (RLS) policies, this endpoint automatically filters results to only show menus belonging to the current tenant identified from the X-Tenant-ID header.
+      tags:
+         - Catering Menus
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination (1-based)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Number of results per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: startDate
+          in: query
+          description: Filter by start date (ISO 8601 datetime)
+          required: false
+          schema:
+            type: string
+            format: date-time
+            example: "2026-05-15T00:00:00Z"
+        - name: endDate
+          in: query
+          description: Filter by end date (ISO 8601 datetime)
+          required: false
+          schema:
+            type: string
+            format: date-time
+            example: "2026-05-20T23:59:59Z"
+      responses:
+        '200':
+          description: Catering menus retrieved successfully
+          content:
+            application/json:
+              schema: 
+                type: array
+                items:
+                  $ref: '#/components/schemas/CateringMenuResponse'
+        '401':
+          description: Unauthorized - Missing or invalid tenant authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - Current tenant has no catering menus
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /catering-menus/{id}:
+    get:
+      summary: Get Catering Menu by ID
+      description: Retrieve details of a specific catering menu. Access to the catering menu is controlled by Row-Level Security policies that verify the current tenant has access to this menu.
+      tags:
+         - Catering Menus
+      parameters:
+        - name: id
+          in: path
+          description: The unique identifier of the catering menu
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Catering menu details retrieved successfully
+          content:
+            application/json:
+             schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: Corporate Event Menu
+                description:
+                  type: string
+                  example: Premium catering for corporate event
+                eventDate:
+                  type: string
+                  format: date-time
+                  example: 2026-05-15T12:00:00Z
+                eventLocation:
+                  type: string
+                  example: Conference Center, Room 101
+        '401':
+          description: Unauthorized - Missing or invalid tenant authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Catering menu not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /menus/{menuType}/{menuId}/menu-items:
+    post:
+      summary: Add Menu Item to Menu
+      description: Add a new menu item to a specific menu.
+      tags:
+        - Menu Items
+      parameters:
+        - name: menuType
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - weekly
+              - catering
+        - name: menuId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                foodItemId:
+                  type: string
+                  format: uuid
+                size:
+                  type: string
+                  example: Regular
+                price:
+                  type: number
+                  example: 12.99
+                sequence:
+                  type: integer
+                  example: 1
+      responses:
+        "201":
+          description: Menu item added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  tenantId:
+                    type: string
+                    format: uuid
+                  menuId:
+                    type: string
+                    format: uuid
+                  menuType:
+                    type: string
+                  foodItemId:
+                    type: string
+                    format: uuid
+                  size:
+                    type: string
+                  price:
+                    type: number
+                  sequence:
+                    type: integer
+                  createdAt:
+                    type: string
+                    format: date-time
+                  updatedAt:
+                    type: string
+                    format: date-time
+    get:
+      summary: List Menu Items in Menu
+      description: Retrieve a list of menu items in a specific menu.
+      tags:
+        - Menu Items
+      parameters:
+        - name: menuType
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - weekly
+              - catering
+        - name: menuId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Menu items retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        foodItemId:
+                          type: string
+                          format: uuid
+                        size:
+                          type: string
+                        price:
+                          type: number
+                        sequence:
+                          type: integer
+components:
+  schemas:
+    FoodItemRequest:
+      type: object
+      required:
+        - name
+        - category
+      properties:
+        name:
+          type: string
+          example: Butter Chicken
+        description:
+          type: string
+          example: Creamy tomato-based chicken curry
+        category:
+          type: string
+          example: Non-Vegetarian
+    FoodItemResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CategoryResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    WeeklyMenuRequest:
+      type: object
+      required:
+        - name
+        - startDate
+        - endDate
+      properties:
+        name:
+          type: string
+          example: Summer Special Week
+        description:
+          type: string
+          example: Fresh seasonal dishes for the week
+        startDate:
+          type: string
+          format: date-time
+          example: 2026-05-11T00:00:00Z
+        endDate:
+          type: string
+          format: date-time
+          example: 2026-05-17T23:59:59Z
+    WeeklyMenuResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+        menuItems:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              foodItemId:
+                type: string
+                format: uuid
+              size:
+                type: string
+              price:
+                type: number
+              sequence:
+                type: integer
+    CateringMenuRequest:
+      type: object
+      required:
+        - name
+        - eventDate
+        - eventLocation
+      properties:
+        name:
+          type: string
+          example: Corporate Event Menu
+        description:
+          type: string
+          example: Premium catering for corporate event
+        eventDate:
+          type: string
+          format: date-time
+          example: 2026-05-15T12:00:00Z
+        eventLocation:
+          type: string
+          example: Conference Center, Room 101
+    CateringMenuResponse:
+      type: object
+      required:
+        - name
+        - eventDate
+        - eventLocation
+      properties:
+        name:
+          type: string
+          example: Corporate Event Menu
+        description:
+          type: string
+          example: Premium catering for corporate event
+        eventDate:
+          type: string
+          format: date-time
+          example: 2026-05-15T12:00:00Z
+        eventLocation:
+          type: string
+          example: Conference Center, Room 101
+    OrderRequest:
+      type: object
+      required:
+        - menuType
+        - menuId
+        - items
+      properties:
+        menuType:
+          type: string
+          enum:
+            - weekly
+            - catering
+        menuId:
+          type: string
+          format: uuid
+        items:
+          type: array
+          items:
+            type: object
+            required:
+              - menuItemId
+              - quantity
+            properties:
+              menuItemId:
+                type: string
+                format: uuid
+              quantity:
+                type: integer
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        menuType:
+          type: string
+          enum:
+            - weekly
+            - catering
+        menuId:
+          type: string
+          format: uuid
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              menuItemId:
+                type: string
+                format: uuid
+              quantity:
+                type: integer
+              price:
+                type: number
+                format: float
+        status:
+          type: string
+        orderDate:
+          type: string
+          format: date-time
+        deliveryDate:
+          type: string
+          format: date-time
+        totalPrice:
+          type: number
+          format: float
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    OrderList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Order'
+        meta:
+          type: object
+    OrderStatusUpdate:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - pending
+            - preparing
+            - ready
+            - delivered
+            - cancelled
+    NotificationRequest:
+      type: object
+      required:
+        - userId
+        - type
+        - message
+      properties:
+        userId:
+          type: string
+          format: uuid
+        orderId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum:
+            - order_ready
+            - promotion
+            - system
+        message:
+          type: string
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        orderId:
+          type: string
+          format: uuid
+        type:
+          type: string
+        message:
+          type: string
+        isRead:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+    NotificationList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notification'
+        meta:
+          type: object
+    Error:
+      type: object
+      description: Standard error response format for all API endpoints
+      properties:
+        success:
+          type: boolean
+          description: Always false for error responses
+          example: false
+        errorCode:
+          type: string
+          description: Machine-readable error code (can be used for programmatic handling)
+          enum:
+            - INVALID_TENANT_ID
+            - UNAUTHORIZED
+            - NOT_FOUND
+            - BAD_REQUEST
+            - VALIDATION_ERROR
+            - CONFLICT
+            - INTERNAL_ERROR
+            - RATE_LIMIT_EXCEEDED
+          example: "UNAUTHORIZED"
+        message:
+          type: string
+          description: Human-readable error message explaining what went wrong
+          example: "Missing required X-Tenant-ID header"
+        statusCode:
+          type: integer
+          description: HTTP status code corresponding to this error
+          example: 401
+          readOnly: true
+        details:
+          type: array
+          description: Additional error details (if applicable)
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                description: The field that failed validation or caused the error
+              code:
+                type: string
+                description: Validation failure code
+              message:
+                type: string
+                description: Detailed explanation of the validation error
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time
+          description: When the error occurred (useful for debugging)
+          readOnly: true
+  parameters:
+    userIdQuery:
+      name: userId
+      in: query
+      required: false
+      schema:
+        type: string
+        format: uuid
+    statusQuery:
+      name: status
+      in: query
+      required: false
+      schema:
+        type: string
+    pageQuery:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 1
+    limitQuery:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 10
+    typeQuery:
+      name: type
+      in: query
+      required: false
+      schema:
+        type: string
+    isReadQuery:
+      name: isRead
+      in: query
+      required: false
+      schema:
+        type: boolean
+    orderIdPath:
+      name: orderId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    notificationIdPath:
+      name: notificationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
