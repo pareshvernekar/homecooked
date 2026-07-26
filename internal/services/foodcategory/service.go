@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	cache "github.com/pareshvernekar/homecooked/internal/cache"
 	logger "github.com/pareshvernekar/homecooked/internal/logger"
 	models "github.com/pareshvernekar/homecooked/internal/models"
 )
@@ -20,17 +19,15 @@ type FoodCategoryRepository interface {
 
 // FoodCategoryService handles food category business logic
 type FoodCategoryService struct {
-	repository  FoodCategoryRepository
-	logger      *logger.Logger
-	cacheClient cache.TypedClient[*models.FoodCategory]
+	repository FoodCategoryRepository
+	logger     *logger.Logger
 }
 
 // NewFoodCategoryService creates a new food category service instance with dependency injection
-func NewFoodCategoryService(repo FoodCategoryRepository, l *logger.Logger, c cache.TypedClient[*models.FoodCategory]) *FoodCategoryService {
+func NewFoodCategoryService(repo FoodCategoryRepository, l *logger.Logger) *FoodCategoryService {
 	return &FoodCategoryService{
-		repository:  repo,
-		logger:      l,
-		cacheClient: c,
+		repository: repo,
+		logger:     l,
 	}
 }
 
@@ -45,19 +42,6 @@ func (s *FoodCategoryService) ListCategories(ctx context.Context, tenantID strin
 	}
 
 	s.logger.Info(ctx, "ListCategories: Successfully retrieved food categories", "tenant_id", tenantID, "count", len(categories))
-
-	if s.cacheClient != nil && len(categories) > 0 {
-		s.logger.Debug(ctx, "ListCategories: Updating cache with food categories", "keys", "all categories")
-
-		for _, catItem := range categories {
-			cacheErr := s.cacheClient.Set(ctx, catItem.GetCacheKey(), catItem)
-			if cacheErr != nil {
-				s.logger.Error(ctx, "ListCategories: Failed to cache food category", "key", catItem.GetCacheKey(), "error", cacheErr)
-				return nil, cacheErr
-			}
-		}
-	}
-
 	return categories, nil
 }
 
@@ -74,16 +58,6 @@ func (s *FoodCategoryService) GetCategoryByID(ctx context.Context, categoryID st
 	for _, catItem := range categories {
 		if catItem.ID == categoryID && catItem.TenantID == tenantID {
 			s.logger.Info(ctx, "GetCategoryByID: Successfully retrieved food category", "category_id", categoryID)
-
-			if s.cacheClient != nil {
-				cacheKey := catItem.GetCacheKey()
-				cacheErr := s.cacheClient.Set(ctx, cacheKey, catItem)
-				if cacheErr != nil {
-					s.logger.Error(ctx, "GetCategoryByID: Failed to cache food category", "key", cacheKey, "error", cacheErr)
-					return nil, cacheErr
-				}
-			}
-
 			return catItem, nil
 		}
 	}
@@ -110,17 +84,6 @@ func (s *FoodCategoryService) GetCategoryByName(ctx context.Context, categoryNam
 			s.logger.Info(ctx, "GetCategoryByName: Category name resolved to ID",
 				"category_name", cat.Name,
 				"category_id", cat.ID)
-
-			// Cache the category if cache client is available
-			if s.cacheClient != nil {
-				cacheErr := s.cacheClient.Set(ctx, cat.GetCacheKey(), cat)
-				if cacheErr != nil {
-					s.logger.Error(ctx, "GetCategoryByName: Failed to cache food category after resolution",
-						"key", cat.GetCacheKey(), "error", cacheErr)
-					// Don't fail - caching should not block the operation
-				}
-			}
-
 			return cat, nil
 		}
 	}

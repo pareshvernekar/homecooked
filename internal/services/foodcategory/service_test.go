@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	cache "github.com/pareshvernekar/homecooked/internal/cache"
 	logger "github.com/pareshvernekar/homecooked/internal/logger"
 	"github.com/pareshvernekar/homecooked/internal/models"
 	"github.com/stretchr/testify/require"
@@ -66,31 +65,12 @@ var categories = []models.FoodCategory{
 	{ID: "cat3", TenantID: "tenant_1", Name: "vegan", Description: "no animal products", CreatedAt: time.Now().UTC().UnixMilli(), UpdatedAt: time.Now().UTC().UnixMilli()},
 }
 
-// MockCacheClient is a mock implementation of the cache interface for testing
-type MockCacheClient struct{}
-
-func (mc *MockCacheClient) Get(ctx context.Context, key string) (*models.FoodCategory, error) {
-	return &models.FoodCategory{}, nil
-}
-
-func (mc *MockCacheClient) Set(ctx context.Context, key string, value *models.FoodCategory, options ...cache.SetOption) error {
-	return nil
-}
-
-func (mc *MockCacheClient) Has(key string) bool {
-	return false
-}
-
-func (mc *MockCacheClient) PostInitialize(ctx context.Context, tenantID string, repos map[string]any) error {
-	return nil
-}
-
 // TestNewFoodCategoryService tests service initialization with dependency injection
 func TestNewFoodCategoryService(t *testing.T) {
 	mockRepo := &MockFoodCategoryRepository{}
 	l := logger.NewLogger()
 
-	service := NewFoodCategoryService(mockRepo, l, &MockCacheClient{})
+	service := NewFoodCategoryService(mockRepo, l)
 	require.NotNil(t, service, "Expected NewFoodCategoryService to return a valid service")
 }
 
@@ -100,7 +80,7 @@ func TestListCategories_Success(t *testing.T) {
 	mockRepo.categories = []models.FoodCategory{categories[0]}
 	l := logger.NewLogger()
 
-	service := NewFoodCategoryService(mockRepo, l, &MockCacheClient{})
+	service := NewFoodCategoryService(mockRepo, l)
 
 	categoriesResult, err := service.ListCategories(t.Context(), "tenant_1")
 
@@ -115,7 +95,7 @@ func TestListCategories_EmptyResult(t *testing.T) {
 	mockRepo.categories = []models.FoodCategory{}
 	l := logger.NewLogger()
 
-	service := NewFoodCategoryService(mockRepo, l, &MockCacheClient{})
+	service := NewFoodCategoryService(mockRepo, l)
 
 	categoriesResult, err := service.ListCategories(t.Context(), "tenant_1")
 	require.NoError(t, err, "Expected no error with empty result, got: %v", err)
@@ -128,7 +108,7 @@ func TestGetCategoryByID_Success(t *testing.T) {
 	mockRepo.categories = []models.FoodCategory{categories[0]}
 	l := logger.NewLogger()
 
-	service := NewFoodCategoryService(mockRepo, l, &MockCacheClient{})
+	service := NewFoodCategoryService(mockRepo, l)
 
 	category, err := service.GetCategoryByID(t.Context(), "cat1", "tenant_1")
 	require.NoError(t, err, "Expected no error for valid ID, got: %v", err)
@@ -142,7 +122,7 @@ func TestGetCategoryByID_NotFound(t *testing.T) {
 	mockRepo.categories = []models.FoodCategory{categories[0]}
 	l := logger.NewLogger()
 
-	service := NewFoodCategoryService(mockRepo, l, &MockCacheClient{})
+	service := NewFoodCategoryService(mockRepo, l)
 
 	category, err := service.GetCategoryByID(t.Context(), "non-existent-id", "tenant_1")
 	require.Error(t, err, "Expected error for non-existent ID")

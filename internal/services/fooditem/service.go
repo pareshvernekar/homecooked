@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	cache "github.com/pareshvernekar/homecooked/internal/cache"
 	"github.com/pareshvernekar/homecooked/internal/errors"
 	logger "github.com/pareshvernekar/homecooked/internal/logger"
 	models "github.com/pareshvernekar/homecooked/internal/models"
@@ -29,7 +28,6 @@ type FoodCategoryService interface {
 type FoodItemService struct {
 	repository      FoodItemRepository
 	logger          *logger.Logger
-	cacheClient     cache.TypedClient[*models.FoodItem]
 	categoryService FoodCategoryService
 }
 
@@ -37,13 +35,11 @@ type FoodItemService struct {
 func NewFoodItemService(
 	repo FoodItemRepository,
 	l *logger.Logger,
-	c cache.TypedClient[*models.FoodItem],
 	catSvc FoodCategoryService,
 ) *FoodItemService {
 	return &FoodItemService{
 		repository:      repo,
 		logger:          l,
-		cacheClient:     c,
 		categoryService: catSvc,
 	}
 }
@@ -123,27 +119,6 @@ func (s *FoodItemService) Create(ctx context.Context, createReq *models.FoodItem
 	s.logger.Info(ctx, "Food item persisted to database",
 		"food_item_id", foodItem.ID,
 		"food_item_name", foodItem.Name)
-
-	// Set individual item cache with TTL (best effort - don't fail operation)
-	if s.cacheClient != nil {
-		itemCacheKey := fmt.Sprintf("food_item:%s", foodItem.ID)
-		ttl := 30 * time.Minute // Default TTL per spec
-
-		cacheErr := s.cacheClient.Set(ctx, itemCacheKey, foodItem, cache.WithTTL(ttl))
-		if cacheErr != nil {
-			s.logger.Warn(ctx, "Failed to cache food item (non-blocking)",
-				"item_id", foodItem.ID,
-				"cache_key", itemCacheKey,
-				"error", fmt.Sprintf("Cache error for %s: %s", createReq.Name, cacheErr))
-			// Log as CacheError but don't fail operation
-		} else {
-			s.logger.Debug(ctx, "Food item cached successfully",
-				"item_id", foodItem.ID,
-				"cache_key", itemCacheKey,
-				"ttl_seconds", int64(ttl.Seconds()))
-		}
-	}
-
 	return foodItem, nil
 }
 
@@ -153,28 +128,7 @@ func (s *FoodItemService) GetByID(ctx context.Context, id string, tenantID strin
 		"food_item_id", id,
 		"tenant_id", tenantID)
 
-	// Step 1: Check cache first - returns CacheError (HTTP 5xx) if unavailable
-	var cachedItem *models.FoodItem
-	cacheKey := fmt.Sprintf("food_item:%s", id)
-
-	if s.cacheClient != nil {
-		var err error
-		cachedItem, err = s.cacheClient.Get(ctx, cacheKey)
-
-		if err != nil {
-			s.logger.Debug(ctx, "Cache miss for food item or cache unavailable",
-				"food_item_id", id,
-				"cache_key", cacheKey)
-		} else if cachedItem != nil {
-			s.logger.Info(ctx, "Cache hit for food item",
-				"food_item_id", id,
-				"cache_key", cacheKey)
-
-			return cachedItem, nil
-		}
-	}
-
-	// Step 2: No cache - load from database
+	// Step 1: Attempt to load from cache if cache client is available	// Step 2: No cache - load from database
 	dbItem, err := s.repository.GetByID(ctx, tenantID, id)
 	if err != nil {
 		return nil, errors.CreateDatabaseError(
@@ -186,18 +140,6 @@ func (s *FoodItemService) GetByID(ctx context.Context, id string, tenantID strin
 
 	s.logger.Info(ctx, "Successfully retrieved food item from database",
 		"food_item_id", dbItem.ID)
-
-	// Step 3: Update cache with fresh data (best effort)
-	if s.cacheClient != nil {
-		cacheErr := s.cacheClient.Set(ctx, cacheKey, dbItem)
-		if cacheErr != nil {
-			s.logger.Warn(ctx, "Failed to update cache with fresh data (non-blocking)",
-				"item_id", dbItem.ID,
-				"cache_key", cacheKey,
-				"error", cacheErr)
-		}
-	}
-
 	return dbItem, nil
 }
 
@@ -227,27 +169,6 @@ func (s *FoodItemService) List(ctx context.Context, tenantID string, page, limit
 		"page", page,
 		"limit", limit,
 		"count", total)
-
-	// Cache all returned items (best effort - non-blocking)
-	if s.cacheClient != nil && len(items) > 0 {
-		for i := range items {
-			itemCacheKey := fmt.Sprintf("food_item:%s", items[i].ID)
-			ttl := 30 * time.Minute
-
-			cacheErr := s.cacheClient.Set(ctx, itemCacheKey, items[i], cache.WithTTL(ttl))
-			if cacheErr != nil {
-				s.logger.Warn(ctx, "Failed to cache food item (non-blocking)",
-					"item_id", items[i].ID,
-					"cache_key", itemCacheKey,
-					"error", cacheErr)
-			} else {
-				s.logger.Debug(ctx, "Food item cached successfully",
-					"item_id", items[i].ID,
-					"cache_key", itemCacheKey)
-			}
-		}
-	}
-
 	return items, nil
 }
 

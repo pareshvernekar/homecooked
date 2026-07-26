@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	cache "github.com/pareshvernekar/homecooked/internal/cache"
 	logger "github.com/pareshvernekar/homecooked/internal/logger"
 	models "github.com/pareshvernekar/homecooked/internal/models"
 
@@ -53,87 +52,6 @@ func (m *MockFoodItemRepository) ListByTenant(ctx context.Context, tenantID stri
 	return args.Get(0).([]*models.FoodItem), args.Get(1).(int64), args.Error(2)
 }
 
-// MockCacheClient mocks the TypedClient[models.FoodItem] interface
-type MockCacheClient struct {
-	mock.Mock
-	CacheHits   []string
-	CacheMisses []string
-	CacheErrors []error
-	CacheSets   int
-	CacheKeys   map[string]string
-	GetKey      string
-}
-
-func (m *MockCacheClient) Get(ctx context.Context, key string) (*models.FoodItem, error) {
-	args := m.Called(key)
-	if m.CacheHits != nil {
-		m.CacheHits = append(m.CacheHits, key)
-	}
-
-	var hit *models.FoodItem
-	currTime := time.Now().UTC().UnixMilli()
-	switch key {
-	case "food_item:valid123":
-		hit = &models.FoodItem{
-			ID:                 "valid123",
-			TenantID:           "tenant-1",
-			Name:               "Test Item",
-			Description:        "Test Description",
-			CategoryID:         "vegetarian",
-			Price:              10.99,
-			IsVegetarian:       true,
-			AvailabilityStatus: "available",
-			CreatedAt:          currTime,
-			UpdatedAt:          currTime,
-		}
-	case "food_item:item-123":
-		hit = &models.FoodItem{
-			ID:                 "item-123",
-			TenantID:           "tenant-1",
-			Name:               "Delicious Pasta Bolognese",
-			Description:        "Hearty Italian beef and tomato pasta dish",
-			CategoryID:         "non_vegetarian",
-			Price:              14.50,
-			IsVegetarian:       false,
-			AvailabilityStatus: "available",
-			CreatedAt:          currTime,
-			UpdatedAt:          currTime,
-		}
-	default:
-		m.CacheMisses = append(m.CacheMisses, key)
-		// Return nil on cache miss (non-fatal - fall through to DB), not an error
-		return nil, nil
-	}
-
-	args = m.Called(key) // Re-call to get the item
-	return hit, args.Error(1)
-}
-
-func (m *MockCacheClient) Set(ctx context.Context, key string, value *models.FoodItem, options ...cache.SetOption) error {
-	if m.CacheSets > 0 {
-		m.CacheKeys[key] = value.ID
-	}
-	params := []interface{}{key, value}
-	for _, opt := range options {
-		params = append(params, opt)
-	}
-	args := m.Called(params...)
-	return args.Error(0)
-}
-
-func (m *MockCacheClient) Has(key string) bool {
-	args := m.Called(key)
-	if m.CacheHits != nil {
-		m.CacheHits = append(m.CacheHits, key)
-	}
-	return !args.Bool(0)
-}
-
-func (m *MockCacheClient) PostInitialize(ctx context.Context, tenantID string, repos map[string]any) error {
-	args := m.Called(tenantID, repos)
-	return args.Error(0)
-}
-
 type MockCategoryService struct {
 	mock.Mock
 }
@@ -155,26 +73,16 @@ func TestCreateFoodItem_Success(t *testing.T) {
 	// Create mock repository
 	mockRepo := &MockFoodItemRepository{}
 	logger := logger.NewLogger()
-	cacheClient := &MockCacheClient{
-		CacheHits:   make([]string, 0),
-		CacheMisses: make([]string, 0),
-		CacheErrors: make([]error, 0),
-		CacheSets:   0,
-		CacheKeys:   make(map[string]string),
-		GetKey:      "",
-	}
-
 	// Setup mock to return success
 	mockRepo.On("Create", mock.Anything, mock.Anything).Return(nil)
 
-	cacheClient.On("Set", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	categoryService := &MockCategoryService{}
 	categoryService.On("GetCategoryByName", mock.Anything, mock.Anything, mock.Anything).Return(&models.FoodCategory{
 		ID:   "category-1",
 		Name: "vegetarian",
 	}, nil)
 
-	svc := NewFoodItemService(mockRepo, logger, cacheClient, categoryService)
+	svc := NewFoodItemService(mockRepo, logger, categoryService)
 
 	// Create request with all required fields
 	createReq := &models.FoodItemCreateRequest{
@@ -203,21 +111,13 @@ func TestCreateFoodItem_ValidationError(t *testing.T) {
 
 	mockRepo := &MockFoodItemRepository{}
 	l := logger.NewLogger()
-	cacheClient := &MockCacheClient{
-		CacheHits:   make([]string, 0),
-		CacheMisses: make([]string, 0),
-		CacheErrors: make([]error, 0),
-		CacheSets:   0,
-		CacheKeys:   make(map[string]string),
-	}
-
 	categoryService := &MockCategoryService{}
 	categoryService.On("GetCategoryByName", mock.Anything, mock.Anything, mock.Anything).Return(&models.FoodCategory{
 		ID:   "category-1",
 		Name: "vegetarian",
 	}, nil)
 
-	svc := NewFoodItemService(mockRepo, l, cacheClient, categoryService)
+	svc := NewFoodItemService(mockRepo, l, categoryService)
 
 	// Test case 1: Empty name (should fail validation)
 	invalidReq := &models.FoodItemCreateRequest{
@@ -241,14 +141,6 @@ func TestCreateFoodItem_DatabaseError(t *testing.T) {
 
 	mockRepo := &MockFoodItemRepository{}
 	l := logger.NewLogger()
-	cacheClient := &MockCacheClient{
-		CacheHits:   make([]string, 0),
-		CacheMisses: make([]string, 0),
-		CacheErrors: make([]error, 0),
-		CacheSets:   0,
-		CacheKeys:   make(map[string]string),
-	}
-
 	categoryService := &MockCategoryService{}
 	categoryService.On("GetCategoryByName", mock.Anything, mock.Anything, mock.Anything).Return(&models.FoodCategory{
 		ID:   "category-1",
@@ -257,7 +149,7 @@ func TestCreateFoodItem_DatabaseError(t *testing.T) {
 	// Setup mock to return database error
 	mockRepo.On("Create", mock.Anything, mock.Anything).Return(errors.New("duplicate key violation"))
 
-	svc := NewFoodItemService(mockRepo, l, cacheClient, categoryService)
+	svc := NewFoodItemService(mockRepo, l, categoryService)
 
 	createReq := &models.FoodItemCreateRequest{
 		Name:               "Test Item",
@@ -286,13 +178,7 @@ func TestGetFoodItemByDBCacheHit(t *testing.T) {
 
 	mockRepo := &MockFoodItemRepository{}
 	l := logger.NewLogger()
-	cacheClient := &MockCacheClient{
-		CacheHits:   make([]string, 0),
-		CacheMisses: make([]string, 0),
-		CacheErrors: make([]error, 0),
-		CacheSets:   0,
-		CacheKeys:   make(map[string]string),
-	}
+
 	currTime := time.Now().UTC().UnixMilli()
 	mockRepo.On("GetByID", mock.Anything, tenantID, "item-123").Return(
 		&models.FoodItem{
@@ -314,20 +200,8 @@ func TestGetFoodItemByDBCacheHit(t *testing.T) {
 		ID:   "category-1",
 		Name: "vegetarian",
 	}, nil)
-	cacheClient.On("Get", mock.Anything, mock.Anything).Return(&models.FoodItem{
-		ID:                 "item-123",
-		TenantID:           "tenant-1",
-		Name:               "Delicious Pasta Bolognese",
-		Description:        "Hearty Italian beef and tomato pasta dish",
-		CategoryID:         "non_vegetarian",
-		Price:              14.50,
-		IsVegetarian:       false,
-		AvailabilityStatus: "available",
-		CreatedAt:          currTime,
-		UpdatedAt:          currTime,
-	}, nil)
 
-	svc := NewFoodItemService(mockRepo, l, cacheClient, categoryService)
+	svc := NewFoodItemService(mockRepo, l, categoryService)
 
 	result, err := svc.GetByID(ctx, "item-123", tenantID)
 
@@ -344,13 +218,6 @@ func TestGetFoodItemByDBCacheMiss(t *testing.T) {
 
 	mockRepo := &MockFoodItemRepository{}
 	l := logger.NewLogger()
-	cacheClient := &MockCacheClient{
-		CacheHits:   make([]string, 0),
-		CacheMisses: make([]string, 0),
-		CacheErrors: make([]error, 0),
-		CacheSets:   0,
-		CacheKeys:   make(map[string]string),
-	}
 	currTime := time.Now().UTC().UnixMilli()
 	mockRepo.On("GetByID", mock.Anything, tenantID, "item-456").Return(
 		&models.FoodItem{
@@ -367,14 +234,12 @@ func TestGetFoodItemByDBCacheMiss(t *testing.T) {
 		},
 		nil,
 	)
-	cacheClient.On("Get", mock.Anything, mock.Anything).Return(nil, errors.New("Cache miss"))
-	cacheClient.On("Set", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	categoryService := &MockCategoryService{}
 	categoryService.On("GetCategoryByName", mock.Anything, mock.Anything, mock.Anything).Return(&models.FoodCategory{
 		ID:   "category-1",
 		Name: "vegetarian",
 	}, nil)
-	svc := NewFoodItemService(mockRepo, l, cacheClient, categoryService)
+	svc := NewFoodItemService(mockRepo, l, categoryService)
 
 	result, err := svc.GetByID(ctx, "item-456", tenantID)
 
@@ -390,23 +255,14 @@ func TestGetFoodItem_DBNotFound(t *testing.T) {
 
 	mockRepo := &MockFoodItemRepository{}
 	l := logger.NewLogger()
-	cacheClient := &MockCacheClient{
-		CacheHits:   make([]string, 0),
-		CacheMisses: make([]string, 0),
-		CacheErrors: make([]error, 0),
-		CacheSets:   0,
-		CacheKeys:   make(map[string]string),
-	}
-
 	// Mock returns nil from cache (cache miss), then database returns not found
 	mockRepo.On("GetByID", mock.Anything, tenantID, "nonexistent-item").Return(nil, errors.New("no rows"))
-	cacheClient.On("Get", mock.Anything, mock.Anything).Return(nil, errors.New("Cache miss"))
 	categoryService := &MockCategoryService{}
 	categoryService.On("GetCategoryByName", mock.Anything, mock.Anything, mock.Anything).Return(&models.FoodCategory{
 		ID:   "category-1",
 		Name: "vegetarian",
 	}, nil)
-	svc := NewFoodItemService(mockRepo, l, cacheClient, categoryService)
+	svc := NewFoodItemService(mockRepo, l, categoryService)
 
 	result, err := svc.GetByID(ctx, "nonexistent-item", tenantID)
 
@@ -425,14 +281,6 @@ func TestListFoodItems_Success(t *testing.T) {
 
 	mockRepo := &MockFoodItemRepository{}
 	l := logger.NewLogger()
-	cacheClient := &MockCacheClient{
-		CacheHits:   make([]string, 0),
-		CacheMisses: make([]string, 0),
-		CacheErrors: make([]error, 0),
-		CacheSets:   0,
-		CacheKeys:   make(map[string]string),
-	}
-	cacheClient.On("Set", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	currTime := time.Now().UTC().UnixMilli()
 	mockRepo.On("ListByTenant", mock.Anything, tenantID, 0, 10).Return(
 		[]*models.FoodItem{
@@ -443,7 +291,7 @@ func TestListFoodItems_Success(t *testing.T) {
 		nil,
 	)
 
-	svc := NewFoodItemService(mockRepo, l, cacheClient, nil)
+	svc := NewFoodItemService(mockRepo, l, nil)
 
 	result, err := svc.List(ctx, tenantID, 0, 10)
 
@@ -458,14 +306,6 @@ func TestListFoodItems_Pagination(t *testing.T) {
 
 	mockRepo := &MockFoodItemRepository{}
 	l := logger.NewLogger()
-	cacheClient := &MockCacheClient{
-		CacheHits:   make([]string, 0),
-		CacheMisses: make([]string, 0),
-		CacheErrors: make([]error, 0),
-		CacheSets:   0,
-		CacheKeys:   make(map[string]string),
-	}
-	cacheClient.On("Set", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	currTime := time.Now().UTC().UnixMilli()
 	// Test page 2 with limit 5
 	mockRepo.On("ListByTenant", mock.Anything, tenantID, 5, 5).Return(
@@ -474,8 +314,7 @@ func TestListFoodItems_Pagination(t *testing.T) {
 		nil,
 	)
 
-	svc := NewFoodItemService(mockRepo, l, cacheClient, nil)
-
+	svc := NewFoodItemService(mockRepo, l, nil)
 	result, err := svc.List(ctx, tenantID, 5, 5)
 
 	assert.NoError(t, err, "List should succeed with pagination")
@@ -490,13 +329,6 @@ func TestListFoodItems_EmptyResult(t *testing.T) {
 
 	mockRepo := &MockFoodItemRepository{}
 	l := logger.NewLogger()
-	cacheClient := &MockCacheClient{
-		CacheHits:   make([]string, 0),
-		CacheMisses: make([]string, 0),
-		CacheErrors: make([]error, 0),
-		CacheSets:   0,
-		CacheKeys:   make(map[string]string),
-	}
 
 	mockRepo.On("ListByTenant", mock.Anything, tenantID, 0, 10).Return(
 		[]*models.FoodItem{},
@@ -504,7 +336,7 @@ func TestListFoodItems_EmptyResult(t *testing.T) {
 		nil,
 	)
 
-	svc := NewFoodItemService(mockRepo, l, cacheClient, nil)
+	svc := NewFoodItemService(mockRepo, l, nil)
 
 	result, err := svc.List(ctx, tenantID, 0, 10)
 
@@ -524,13 +356,7 @@ func TestUpdateFoodItem_Success(t *testing.T) {
 
 	mockRepo := &MockFoodItemRepository{}
 	l := logger.NewLogger()
-	cacheClient := &MockCacheClient{
-		CacheHits:   make([]string, 0),
-		CacheMisses: make([]string, 0),
-		CacheErrors: make([]error, 0),
-		CacheSets:   0,
-		CacheKeys:   make(map[string]string),
-	}
+
 	currTime := time.Now().UTC().UnixMilli()
 	mockRepo.On("GetByID", mock.Anything, tenantID, itemID).Return(
 		&models.FoodItem{
@@ -555,7 +381,7 @@ func TestUpdateFoodItem_Success(t *testing.T) {
 		Name: "vegan",
 	}, nil)
 
-	svc := NewFoodItemService(mockRepo, l, cacheClient, categoryService)
+	svc := NewFoodItemService(mockRepo, l, categoryService)
 
 	updateReq := &models.FoodItemUpdateRequest{
 		Name:               "Updated Pizza Name",
@@ -579,13 +405,7 @@ func TestUpdateFoodItem_ValidationFailed(t *testing.T) {
 
 	mockRepo := &MockFoodItemRepository{}
 	l := logger.NewLogger()
-	cacheClient := &MockCacheClient{
-		CacheHits:   make([]string, 0),
-		CacheMisses: make([]string, 0),
-		CacheErrors: make([]error, 0),
-		CacheSets:   0,
-		CacheKeys:   make(map[string]string),
-	}
+
 	currTime := time.Now().UTC().UnixMilli()
 	mockRepo.On("GetByID", mock.Anything, tenantID, itemID).Return(
 		&models.FoodItem{
@@ -609,7 +429,7 @@ func TestUpdateFoodItem_ValidationFailed(t *testing.T) {
 		Name: "vegan",
 	}, nil)
 
-	svc := NewFoodItemService(mockRepo, l, cacheClient, categoryService)
+	svc := NewFoodItemService(mockRepo, l, categoryService)
 
 	// Empty name validation
 	updateReq := &models.FoodItemUpdateRequest{
@@ -634,14 +454,6 @@ func TestUpdateFoodItem_ItemNotFound(t *testing.T) {
 
 	mockRepo := &MockFoodItemRepository{}
 	l := logger.NewLogger()
-	cacheClient := &MockCacheClient{
-		CacheHits:   make([]string, 0),
-		CacheMisses: make([]string, 0),
-		CacheErrors: make([]error, 0),
-		CacheSets:   0,
-		CacheKeys:   make(map[string]string),
-	}
-
 	mockRepo.On("GetByID", mock.Anything, tenantID, itemID).Return(nil, errors.New("no rows in result set"))
 
 	categoryService := &MockCategoryService{}
@@ -650,7 +462,7 @@ func TestUpdateFoodItem_ItemNotFound(t *testing.T) {
 		Name: "vegetarian",
 	}, nil)
 
-	svc := NewFoodItemService(mockRepo, l, cacheClient, categoryService)
+	svc := NewFoodItemService(mockRepo, l, categoryService)
 
 	updateReq := &models.FoodItemUpdateRequest{
 		Name:               "New Name",
@@ -679,13 +491,6 @@ func TestDeleteFoodItem_Success(t *testing.T) {
 
 	mockRepo := &MockFoodItemRepository{}
 	l := logger.NewLogger()
-	cacheClient := &MockCacheClient{
-		CacheHits:   make([]string, 0),
-		CacheMisses: make([]string, 0),
-		CacheErrors: make([]error, 0),
-		CacheSets:   0,
-		CacheKeys:   make(map[string]string),
-	}
 	currTime := time.Now().UTC().UnixMilli()
 	mockRepo.On("GetByID", mock.Anything, tenantID, itemID).Return(
 		&models.FoodItem{
@@ -704,7 +509,7 @@ func TestDeleteFoodItem_Success(t *testing.T) {
 	)
 	mockRepo.On("Delete", mock.Anything, itemID).Return(int64(1), nil)
 
-	svc := NewFoodItemService(mockRepo, l, cacheClient, nil)
+	svc := NewFoodItemService(mockRepo, l, nil)
 
 	rowsAffected, err := svc.Delete(ctx, itemID, tenantID)
 
@@ -720,17 +525,10 @@ func TestDeleteFoodItem_NotFound(t *testing.T) {
 
 	mockRepo := &MockFoodItemRepository{}
 	l := logger.NewLogger()
-	cacheClient := &MockCacheClient{
-		CacheHits:   make([]string, 0),
-		CacheMisses: make([]string, 0),
-		CacheErrors: make([]error, 0),
-		CacheSets:   0,
-		CacheKeys:   make(map[string]string),
-	}
 
 	mockRepo.On("GetByID", mock.Anything, tenantID, itemID).Return(nil, errors.New("no rows in result set"))
 
-	svc := NewFoodItemService(mockRepo, l, cacheClient, nil)
+	svc := NewFoodItemService(mockRepo, l, nil)
 
 	rowsAffected, err := svc.Delete(ctx, itemID, tenantID)
 

@@ -6,11 +6,9 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/jmoiron/sqlx"
-	cache "github.com/pareshvernekar/homecooked/internal/cache"
 	handlers "github.com/pareshvernekar/homecooked/internal/handlers"
 	logger "github.com/pareshvernekar/homecooked/internal/logger"
 	middleware "github.com/pareshvernekar/homecooked/internal/middleware"
-	models "github.com/pareshvernekar/homecooked/internal/models"
 )
 
 // Server represents the HTTP server structure
@@ -18,18 +16,16 @@ type Server struct {
 	Router *gin.Engine
 	DB     *sqlx.DB
 	Logger *logger.Logger
-	Cache  cache.TypedClient[models.FoodItem] // Cache client for food item caching (generic type)
 }
 
 // NewServer creates a new server instance with proper initialization
-func NewServer(db *sqlx.DB, l *logger.Logger, c cache.TypedClient[models.FoodItem]) *Server {
+func NewServer(db *sqlx.DB, l *logger.Logger) *Server {
 	router := setupGinEngine(l)
 
 	return &Server{
 		Router: router,
 		DB:     db,
 		Logger: l,
-		Cache:  c,
 	}
 }
 
@@ -50,7 +46,6 @@ func SetupRoutes(
 	db *sqlx.DB,
 	l *logger.Logger,
 	handler *handlers.FoodItemHandler,
-	cache cache.TypedClient[models.FoodItem],
 ) {
 	// Food items API
 	v1 := router.Group("/api/v1")

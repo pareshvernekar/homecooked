@@ -77,7 +77,7 @@ func (r *PostgreSQLFoodCategoryRepository) Update(ctx context.Context, category 
 
 	r.Logger.Info(ctx, "Update: Updating food category", "tenant_id", r.TenantID, "id", category.ID)
 	// Update the existing food category in the database
-	query := `UPDATE food_category SET name = $1, description = $2, is_active = $3, updated_at = $4 WHERE id = $5 AND tenant_id = $6`
+	query := `UPDATE food_category SET name = $1, description = $2, is_active = $3, updated_at = $4 WHERE id = $5 AND current_setting('app.current_tenant_id')::TEXT = $6`
 	updatedAt := time.Now().UTC().UnixMilli()
 	result, err := r.DB.Exec(query, category.Name, category.Description, category.IsActive, updatedAt, category.ID, r.TenantID)
 	if err != nil {
@@ -96,7 +96,7 @@ func (r *PostgreSQLFoodCategoryRepository) Delete(ctx context.Context, tenantID 
 	r.Logger.Info(ctx, "Delete: Deleting food category", "tenant_id", tenantID, "id", id)
 	// Delete the food category from the database
 	updatedAt := time.Now().UTC().UnixMilli()
-	query := `UPDATE food_category SET is_active = FALSE, updated_at = $1 WHERE id = $2 AND tenant_id = $3`
+	query := `UPDATE food_category SET is_active = FALSE, updated_at = $1 WHERE id = $2 AND current_setting('app.current_tenant_id')::TEXT = $3`
 	result, err := r.DB.Exec(query, updatedAt, id, tenantID)
 	if err != nil {
 		r.Logger.Error(ctx, "Delete: Failed to delete food category", "tenant_id", tenantID, "id", id, "error", err)

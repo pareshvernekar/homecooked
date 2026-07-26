@@ -19,11 +19,11 @@ type PostgreSQLFoodItemRepository struct {
 }
 
 // NewFoodItemRepository creates a new food item repository instance with dependency injection
-func NewFoodItemRepository(db *sqlx.DB, tenantID string) *PostgreSQLFoodItemRepository {
+func NewFoodItemRepository(db *sqlx.DB, logger *logger.Logger, tenantID string) *PostgreSQLFoodItemRepository {
 	return &PostgreSQLFoodItemRepository{
 		DB:       db,
 		TenantID: tenantID,
-		Logger:   logger.NewLogger(),
+		Logger:   logger,
 	}
 }
 
@@ -74,7 +74,7 @@ func (r *PostgreSQLFoodItemRepository) Update(ctx context.Context, foodItem *mod
 	r.Logger.Info(ctx, "Update: Updating food item", "tenant_id", r.TenantID, "id", foodItem.ID)
 
 	updatedAt := time.Now().UTC().UnixMilli()
-	query := `UPDATE food_item SET name = $1, description = $2, price = $3, category_id = $4, updated_at = $5 WHERE id = $6 AND tenant_id = $7`
+	query := `UPDATE food_item SET name = $1, description = $2, price = $3, category_id = $4, updated_at = $5 WHERE id = $6 AND current_setting('app.current_tenant_id')::TEXT = $7`
 	result, err := r.DB.Exec(query, foodItem.Name, foodItem.Description, foodItem.Price, foodItem.CategoryID, updatedAt, foodItem.ID, r.TenantID)
 	if err != nil {
 		r.Logger.Error(ctx, "Update: Failed to update food item", "tenant_id", r.TenantID, "id", foodItem.ID, "error", err)
@@ -95,7 +95,7 @@ func (r *PostgreSQLFoodItemRepository) Update(ctx context.Context, foodItem *mod
 func (r *PostgreSQLFoodItemRepository) Delete(ctx context.Context, id string) (int64, error) {
 	r.Logger.Info(ctx, "Delete: Deleting food item", "tenant_id", r.TenantID, "id", id)
 	updatedAt := time.Now().UTC().UnixMilli()
-	query := `UPDATE food_item SET is_active = FALSE, updated_at = $1 WHERE id = $2 AND tenant_id = $3`
+	query := `UPDATE food_item SET is_active = FALSE, updated_at = $1 WHERE id = $2 AND current_setting('app.current_tenant_id')::TEXT = $3`
 	result, err := r.DB.Exec(query, updatedAt, id, r.TenantID)
 	if err != nil {
 		r.Logger.Error(ctx, "Delete: Failed to delete food item", "tenant_id", r.TenantID, "id", id, "error", err)

@@ -8,53 +8,63 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	cache "github.com/pareshvernekar/homecooked/internal/cache"
-	repo "github.com/pareshvernekar/homecooked/internal/repository"
 	logger "github.com/pareshvernekar/homecooked/internal/logger"
 	"github.com/pareshvernekar/homecooked/internal/middleware"
 	"github.com/pareshvernekar/homecooked/internal/models"
 )
 
-type MockFoodItemRepository struct{}
+type MockFoodItemService struct{}
 
-func (m *MockFoodItemRepository) Create(foodItem *models.FoodItem) error { return nil }
+func (s *MockFoodItemService) Create(ctx context.Context, createReq *models.FoodItemCreateRequest, tenantID string) (*models.FoodItem, error) {
+	return &models.FoodItem{
 
-func (m *MockFoodItemRepository) GetByID(id string) (*models.FoodItem, error) {
-	return &models.FoodItem{}, nil
+		ID:          "550e8400-e29b-41d4-a716-446655440000",
+		Name:        "Burger",
+		Description: "A delicious burger",
+		Price:       9.99,
+		CategoryID:  "category-1234",
+		TenantID:    tenantID,
+	}, nil
 }
 
-func (m *MockFoodItemRepository) Update(foodItem *models.FoodItem) error { return nil }
-
-func (m *MockFoodItemRepository) Delete(id string) error { return nil }
-
-func (m *MockFoodItemRepository) ListByTenant(tenantID string, offset, limit int) ([]models.FoodItem, int64, error) {
-	return []models.FoodItem{{}}, 0, nil
+func (s *MockFoodItemService) List(ctx context.Context, tenantID string, page int, limit int) ([]*models.FoodItem, error) {
+	return []*models.FoodItem{
+		{
+			ID:          "550e8400-e29b-41d4-a716-446655440000",
+			Name:        "Burger",
+			Description: "A delicious burger",
+			Price:       9.99,
+			CategoryID:  "category-1234",
+			TenantID:    tenantID,
+		},
+	}, nil
 }
 
-// MockCacheClient is a mock implementation of the CacheClient interface for testing
-type MockCacheClient struct{}
-
-func (mc *MockCacheClient) Get(ctx context.Context, key string) (any, error) {
-	return nil, nil // Default: always miss
+func (s *MockFoodItemService) GetByID(ctx context.Context, id string, tenantID string) (*models.FoodItem, error) {
+	return &models.FoodItem{
+		ID:          id,
+		Name:        "Burger",
+		Description: "A delicious burger",
+		Price:       9.99,
+		CategoryID:  "category-1234",
+		TenantID:    tenantID,
+	}, nil
 }
 
-func (mc *MockCacheClient) Set(ctx context.Context, key string, value any, options ...cache.SetOption) error {
-	return nil // Default: always succeeds
+func (s *MockFoodItemService) Update(ctx context.Context, id string, updateReq *models.FoodItemUpdateRequest, tenantID string) error {
+	return nil
 }
 
-func (mc *MockCacheClient) Has(key string) bool {
-	return false
+func (s *MockFoodItemService) Delete(ctx context.Context, id string, tenantID string) (int64, error) {
+	return 1, nil
 }
-
-func (mc *MockCacheClient) PostInitialize(ctx context.Context, tenantID string, repository repo.FoodCategoryRepository) error {
-	return nil // Mock implementation - no-op
-}
-
 func TestNewFoodItemHandler(t *testing.T) {
-	mockRepo := &MockFoodItemRepository{}
+
+	mockFoodItemService := &MockFoodItemService{}
 
 	l := logger.NewLogger()
-	handler := NewFoodItemHandler(mockRepo, l, &MockCacheClient{})
+
+	handler := NewFoodItemHandler(mockFoodItemService, l)
 
 	if handler == nil {
 		t.Error("Expected NewFoodItemHandler to return a valid handler")
@@ -62,9 +72,9 @@ func TestNewFoodItemHandler(t *testing.T) {
 }
 
 func TestUpdateFoodItem_Success(t *testing.T) {
-	mockRepo := &MockFoodItemRepository{}
+	mockFoodItemService := &MockFoodItemService{}
 	l := logger.NewLogger()
-	handler := NewFoodItemHandler(mockRepo, l, &MockCacheClient{})
+	handler := NewFoodItemHandler(mockFoodItemService, l)
 
 	gin.SetMode(gin.TestMode)
 
@@ -80,9 +90,9 @@ func TestUpdateFoodItem_Success(t *testing.T) {
 }
 
 func TestDeleteFoodItem_Success(t *testing.T) {
-	mockRepo := &MockFoodItemRepository{}
+	mockFoodItemService := &MockFoodItemService{}
 	l := logger.NewLogger()
-	handler := NewFoodItemHandler(mockRepo, l, &MockCacheClient{})
+	handler := NewFoodItemHandler(mockFoodItemService, l)
 
 	gin.SetMode(gin.TestMode)
 
@@ -96,9 +106,9 @@ func TestDeleteFoodItem_Success(t *testing.T) {
 }
 
 func TestCreateFoodItem_InvalidRequest(t *testing.T) {
-	mockRepo := &MockFoodItemRepository{}
+	mockFoodItemService := &MockFoodItemService{}
 	l := logger.NewLogger()
-	handler := NewFoodItemHandler(mockRepo, l, &MockCacheClient{})
+	handler := NewFoodItemHandler(mockFoodItemService, l)
 
 	gin.SetMode(gin.TestMode)
 

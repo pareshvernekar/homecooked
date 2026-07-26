@@ -1,6 +1,7 @@
 package errors
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -87,18 +88,18 @@ func (e *ServiceError) Unwrap() error {
 }
 
 // Log implements logging for structured logging integration.
-func (e *ServiceError) Log(logger *logger.Logger) {
+func (e *ServiceError) Log(ctx context.Context, logger *logger.Logger) {
 	if logger == nil {
 		return
 	}
-	logger.Error(nil, fmt.Sprintf("Service Error [%s]: %s", e.Code, e.Message),
+	logger.Error(ctx, fmt.Sprintf("Service Error [%s]: %s", e.Code, e.Message),
 		"error_code", e.Code,
 		"error_type", e.Type,
 		"status_code", e.GetStatusCode(),
 		"operation", e.Operation)
 
 	if tenantID := strings.TrimSpace(e.TenantID); tenantID != "" {
-		logger.Error(nil, "Error context for tenant",
+		logger.Error(ctx, "Error context for tenant",
 			"tenant_id", tenantID,
 			"error_code", e.Code,
 			"operation", e.Operation)
