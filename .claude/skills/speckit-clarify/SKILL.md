@@ -22,7 +22,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 ## Pre-Execution Checks
 
 **Check for extension hooks (before clarification)**:
-- Check if `.specify/extensions.yml` exists in the project root.
+- Check if `docs/specs/extensions.yml` exists in the project root.
 - If it exists, read it and look for entries under the `hooks.before_clarify` key
 - If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
 - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
@@ -52,7 +52,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
     Wait for the result of the hook command before proceeding to the Outline.
     ```
-- If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
+- If no hooks are registered or `docs/specs/extensions.yml` does not exist, skip silently
 
 ## Outline
 
@@ -62,7 +62,7 @@ Note: This clarification workflow is expected to run (and be completed) BEFORE i
 
 Execution steps:
 
-1. Run `.specify/scripts/bash/check-prerequisites.sh --json --paths-only` from repo root **once** (combined `--json --paths-only` mode / `-Json -PathsOnly`). Parse minimal JSON payload fields:
+1. Run `docs/scripts/bash/check-prerequisites.sh --json --paths-only` from repo root **once** (combined `--json --paths-only` mode / `-Json -PathsOnly`). Parse minimal JSON payload fields:
    - `FEATURE_DIR`
    - `FEATURE_SPEC`
    - (Optionally capture `IMPL_PLAN`, `TASKS` for future chained flows.)
@@ -223,7 +223,7 @@ Context for prioritization: $ARGUMENTS
 ## Post-Execution Checks
 
 **Check for extension hooks (after clarification)**:
-Check if `.specify/extensions.yml` exists in the project root.
+Check if `docs/specs/extensions.yml` exists in the project root.
 - If it exists, read it and look for entries under the `hooks.after_clarify` key
 - If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
 - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
@@ -251,4 +251,4 @@ Check if `.specify/extensions.yml` exists in the project root.
     Executing: `/{command}`
     EXECUTE_COMMAND: {command}
     ```
-- If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
+- If no hooks are registered or `docs/specs/extensions.yml` does not exist, skip silently

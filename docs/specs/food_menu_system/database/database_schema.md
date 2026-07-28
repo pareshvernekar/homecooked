@@ -176,7 +176,7 @@ CREATE TABLE tenant_menu_item_images (
 
 ## 5.x Spec-aligned Tables (singular names)
 
-The following tables mirror the `specs/food_menu_system/spec.md` design. Primary keys use `VARCHAR(50)`.
+The following tables mirror the `docs/specs/food_menu_system/spec.md` design. Primary keys use `VARCHAR(50)`.
 
 ### Food Category
 ```sql

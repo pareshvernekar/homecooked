@@ -3,7 +3,7 @@
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning  
 **Created**: 2026-05-16  
-**Feature**: [specs/cache_framework/spec.md](../../cache_framework/spec.md)  
+**Feature**: [docs/specs/cache_framework/spec.md](../../cache_framework/spec.md)  
 
 ---
 

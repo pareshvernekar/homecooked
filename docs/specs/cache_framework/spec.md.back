@@ -1,6 +1,6 @@
 # Cache Framework Specification
 
-**Feature Directory**: `specs/cache_framework`  
+**Feature Directory**: `docs/specs/cache_framework`  
 **Created**: 2026-05-16  
 **Status**: In Progress  
 **Library**: github.com/eko/gocache with go-cache flavor  

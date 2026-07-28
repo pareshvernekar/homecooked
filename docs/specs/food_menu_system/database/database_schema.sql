@@ -1,5 +1,5 @@
 -- Food Menu System schema SQL
--- Generated from specs/food_menu_system/database/database_schema.md
+-- Generated from docs/specs/food_menu_system/database/database_schema.md
 -- PostgreSQL 14+
 
 -- Schemas / Settings

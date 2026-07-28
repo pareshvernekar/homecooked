@@ -1,6 +1,6 @@
 # Cache Framework Specification
 
-**Feature Directory**: `specs/cache_framework`  
+**Feature Directory**: `docs/specs/cache_framework`  
 **Created**: 2026-05-16  
 **Status**: In Progress  
 **Library**: github.com/eko/gocache with go-cache flavor  
@@ -618,7 +618,7 @@ type CacheEntry[K comparable, V any] struct {
 
 **Purpose**: Validate specification completeness after clarification session  
 **Created**: 2026-05-16  
-**Feature**: [specs/cache_framework/spec.md](../../cache_framework/spec.md)  
+**Feature**: [docs/specs/cache_framework/spec.md](../../cache_framework/spec.md)  
 
 ---
 

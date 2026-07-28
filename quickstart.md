@@ -3,7 +3,7 @@
 **Created**: 2026-05-28  
 **Feature Branch**: `002-cache-initialization-from-food-categories`  
 **Target**: Internal services/fooditem service implementation  
-**Specification**: [`FoodItem-CRUD-Service.spec.md`](specs/food_menu_system/FoodItem-CRUD-Service.spec.md)
+**Specification**: [`FoodItem-CRUD-Service.spec.md`](docs/specs/food_menu_system/FoodItem-CRUD-Service.spec.md)
 
 ---
 

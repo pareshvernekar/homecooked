@@ -3,7 +3,7 @@
 
 **Branch**: 20260516-174330-cache-framework  
 **Created**: 2026-05-16  
-**Spec**: [specs/cache_framework/spec.md](../spec.md) | **Status**: Ready for Implementation
+**Spec**: [docs/specs/cache_framework/spec.md](../spec.md) | **Status**: Ready for Implementation
 
 ---
 

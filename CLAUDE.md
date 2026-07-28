@@ -28,7 +28,8 @@ homecooked/
 │   ├── validation/      # Input validation
 │   └── views/          # Response view models
 ├── migrations/         # Database migration scripts (empty - uses SQL files)
-├── specs/             # API & system specifications
+├── docs/
+    └──specs/             # API & system specifications
 │   ├── food_menu_system/     # Main API specification
 │   └── cache_framework/      # Caching strategy spec
 ├── config/           # Application configuration
@@ -328,7 +329,7 @@ shell commands, and other important information, read the current plan
 <!-- SPECKIT END -->
 
 <!-- 
-SPECKIT REFERENCE: specs/cache_implementation/plan.md
+SPECKIT REFERENCE: docs/specs/cache_implementation/plan.md
 Implementation Plan for cache-initialization-from-food-categories feature
 Updated: 2026-05-18
 -->

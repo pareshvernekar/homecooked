@@ -567,7 +567,7 @@ Cache-Control: no-cache
 ## Completion Criteria
 
 ✅ Feature branch `002-food-category-crud-api` created  
-✅ Specification file created at `specs/002-food-category-crud-api/spec.md`  
+✅ Specification file created at `docs/specs/002-food-category-crud-api/spec.md`  
 ✅ All functional requirements documented  
 ✅ Success criteria defined and measurable  
 ✅ Cache synchronization strategy defined for all CRUD operations  

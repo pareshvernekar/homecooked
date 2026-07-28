@@ -4,7 +4,7 @@
 **Version**: 1.0.0  
 **Date**: 2026-05-16  
 **Feature**: In-Memory Caching Layer with eko/gocache Library  
-**Spec**: [specs/cache_framework/spec.md](../spec.md) | **Data Model**: [data-model.md](./data-model.md)
+**Spec**: [docs/specs/cache_framework/spec.md](../spec.md) | **Data Model**: [data-model.md](./data-model.md)
 
 ---
 
@@ -377,7 +377,9 @@ import (
 )
 
 func TestGet_CacheHit(t *testing.T) {
-     client := NewGoCacheClient()
+     gocacheClient := gocache.New(config.DefaultTTL, config.DefaultTTL*2)
+     gocacheStore := goCacheStore.NewGoCache(gocacheClient)
+    cacheManager := cache.New[string, any](gocacheStore)
      
      // Arrange: Pre-populate with known value
      var empty FoodItem
@@ -400,7 +402,9 @@ func TestGet_CacheHit(t *testing.T) {
 }
 
 func TestGet_CacheMiss(t *testing.T) {
-     client := NewGoCacheClient()    // Empty cache
+     gocacheClient := gocache.New(config.DefaultTTL, config.DefaultTTL*2)
+     gocacheStore := goCacheStore.NewGoCache(gocacheClient)
+    cacheManager := cache.New[string, any](gocacheStore)    // Empty cache
     
      var empty FoodItem
      err := client.Get(context.Background(), "nonexistent_key", &empty)
@@ -413,7 +417,9 @@ func TestGet_CacheMiss(t *testing.T) {
 
 // Concurrent Access Pattern Test - Validate Thread Safety
 func TestConcurrentAccess_15Goroutines(t *testing.T) {
-     client := NewGoCacheClient()
+     gocacheClient := gocache.New(config.DefaultTTL, config.DefaultTTL*2)
+     gocacheStore := goCacheStore.NewGoCache(gocacheClient)
+    cacheManager := cache.New[string, any](gocacheStore)
      
      // Pre-populate test data
      err := client.Set(context.Background(), "shared_key", FoodItem{Name: "Test Item"})
@@ -445,7 +451,9 @@ func TestConcurrentAccess_15Goroutines(t *testing.T) {
 }
 
 func TestSet_WithCustomTTL(t *testing.T) {
-     client := NewGoCacheClient()
+     gocacheClient := gocache.New(config.DefaultTTL, config.DefaultTTL*2)
+     gocacheStore := goCacheStore.NewGoCache(gocacheClient)
+    cacheManager := cache.New[string, any](gocacheStore)
      
      err := client.Set(
          context.Background(),

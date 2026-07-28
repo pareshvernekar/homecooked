@@ -316,8 +316,8 @@ This document provides a comprehensive mapping between specification requirement
 - **Status**: ❌ NOT STARTED
 - **Description**: Define detailed request/response contracts
 - **Expected Implementation Files**:
-  - `specs/food_menu_system/contracts/food-items.yaml` (Not created)
-  - `specs/food_menu_system/contracts/menus.yaml` (Not created)
+  - `docs/specs/food_menu_system/contracts/food-items.yaml` (Not created)
+  - `docs/specs/food_menu_system/contracts/menus.yaml` (Not created)
 - **Spec Reference**: [api_specification.md](api_specification.md)
 - **Test Files**: None created
 - **Dependencies**: T031

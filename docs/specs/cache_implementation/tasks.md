@@ -26,16 +26,16 @@ Initialize project structure and documentation artifacts for cache initializatio
 ---
 
 ### T001 Create project documentation directory structure
-- [x] T001 Create specs/cache_implementation directory at repository root ✓ COMPLETED
+- [x] T001 Create docs/specs/cache_implementation directory at repository root ✓ COMPLETED
    - **Description**: Establish the documentation container for this feature branch.
    - **Dependencies**: None
    - **Parallel Execution**: Can run independently alongside other setup tasks
-   - **Implementation Strategy**: `mkdir -p specs/cache_implementation` followed by subdirectories for contracts
+   - **Implementation Strategy**: `mkdir -p docs/specs/cache_implementation` followed by subdirectories for contracts
 
 ---
 
 ### T002 Create integration contract document
-- [x] T002 Define cache API contract in specs/cache_implementation/contracts/cache-initialization-api.md ✓ COMPLETED
+- [x] T002 Define cache API contract in docs/specs/cache_implementation/contracts/cache-initialization-api.md ✓ COMPLETED
    - **Story Goal**: Document the cache initialization interface contract
    - **Independent Test Criteria**: Contract specifies PostInitialize method signature, parameter types, return types, error conditions, and usage pattern examples
    - **Dependencies**: None (Phase 1)
@@ -45,7 +45,7 @@ Initialize project structure and documentation artifacts for cache initializatio
 ---
 
 ### T003 Update CLAUDE.md with implementation plan reference
-- [ ] T003 Add link to specs/cache_implementation/plan.md in CLAUDE.md under SPECKIT markers
+- [ ] T003 Add link to docs/specs/cache_implementation/plan.md in CLAUDE.md under SPECKIT markers
    - **Story Goal**: Make implementation plan accessible to development AI agents
    - **Independent Test Criteria**: CLAUDE.md contains reference to plan.md between `<!-- SPECKIT START -->` and `<!-- SPECKIT END -->` markers
    - **Dependencies**: T002 (contract document must exist first)
@@ -275,7 +275,7 @@ Complete remaining implementation details including configuration updates and do
 ---
 
 ### T016 Create quickstart guide for developers using cache initialization API
-- [ ] T016 Document usage pattern in specs/cache_implementation/quickstart.md
+- [ ] T016 Document usage pattern in docs/specs/cache_implementation/quickstart.md
    - **Story Goal**: Help new developers understand and use PostInitialize hook correctly
    - **Independent Test Criteria**: 
      - Document explains how to call PostInitialize at startup with tenant context

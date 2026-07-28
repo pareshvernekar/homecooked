@@ -703,7 +703,7 @@ internal/services/foodcategory/
 
 ## References
 
-- **Specification**: `specs/food_menu_system/FoodItem-CRUD-Service.spec.md`
+- **Specification**: `docs/specs/food_menu_system/FoodItem-CRUD-Service.spec.md`
 - **FoodCategory Service Template**: `internal/services/foodcategory/service.go`
 - **Models**: `internal/models/fooditem.go`, `internal/models/foodcategory.go`
 - **Repositories**: `internal/repository/fooditem_repository.go`, `internal/repository/foodcategory_repository.go`

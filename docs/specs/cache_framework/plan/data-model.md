@@ -3,7 +3,7 @@
 
 **Date**: 2026-05-16  
 **Feature Branch**: 20260516-174330-cache-framework  
-**Spec**: [specs/cache_framework/spec.md](../spec.md) | **Design Plan**: [plan/design.md](./design.md)
+**Spec**: [docs/specs/cache_framework/spec.md](../spec.md) | **Design Plan**: [plan/design.md](./design.md)
 
 ---
 

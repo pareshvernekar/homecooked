@@ -43,7 +43,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 ## Pre-Execution Checks
 
 **Check for extension hooks (before checklist generation)**:
-- Check if `.specify/extensions.yml` exists in the project root.
+- Check if `docs/specs/extensions.yml` exists in the project root.
 - If it exists, read it and look for entries under the `hooks.before_checklist` key
 - If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
 - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
@@ -73,11 +73,11 @@ You **MUST** consider the user input before proceeding (if not empty).
 
     Wait for the result of the hook command before proceeding to the Execution Steps.
     ```
-- If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
+- If no hooks are registered or `docs/specs/extensions.yml` does not exist, skip silently
 
 ## Execution Steps
 
-1. **Setup**: Run `.specify/scripts/bash/check-prerequisites.sh --json` from repo root and parse JSON for FEATURE_DIR and AVAILABLE_DOCS list.
+1. **Setup**: Run `docs/scripts/bash/check-prerequisites.sh --json` from repo root and parse JSON for FEATURE_DIR and AVAILABLE_DOCS list.
    - All file paths must be absolute.
    - For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 
@@ -341,7 +341,7 @@ Sample items:
 ## Post-Execution Checks
 
 **Check for extension hooks (after checklist generation)**:
-Check if `.specify/extensions.yml` exists in the project root.
+Check if `docs/specs/extensions.yml` exists in the project root.
 - If it exists, read it and look for entries under the `hooks.after_checklist` key
 - If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
 - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
@@ -369,4 +369,4 @@ Check if `.specify/extensions.yml` exists in the project root.
     Executing: `/{command}`
     EXECUTE_COMMAND: {command}
     ```
-- If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
+- If no hooks are registered or `docs/specs/extensions.yml` does not exist, skip silently

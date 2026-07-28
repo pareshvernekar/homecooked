@@ -2,7 +2,7 @@
 
 **Status**: In Progress (Phase 0-1 Complete, Phase 2 in progress)  
 **Date**: 2026-05-17 | **Branch**: implementation-phase-4  
-**Spec**: [specs/cache_framework/spec.md](./spec.md) | **Plan**: [specs/cache_framework/plan/design.md](./plan/design.md)
+**Spec**: [docs/specs/cache_framework/spec.md](./spec.md) | **Plan**: [docs/specs/cache_framework/plan/design.md](./plan/design.md)
 
 ---
 

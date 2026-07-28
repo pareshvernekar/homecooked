@@ -65,7 +65,7 @@
 ### Documentation (this feature)
 
 ```text
-specs/cache_implementation/
+docs/specs/cache_implementation/
 ├── plan.md               # This file (/speckit.plan command output)
 ├── research.md           # Phase 0 output (/speckit.plan command)
 ├── data-model.md         # Phase 1 output (cache entry models, key conventions)
@@ -97,7 +97,7 @@ homecooked/
 ├── config/
 │   └── configs/
 │       └── config.yaml        # Cache configuration (global_ttl, max_items)
-└── specs/cache_implementation/
+└── docs/specs/cache_implementation/
     ├── plan.md                # This file
     ├── research.md            # Research findings
     ├── data-model.md          # Cache entry data models

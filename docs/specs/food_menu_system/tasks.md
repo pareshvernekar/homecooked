@@ -175,7 +175,7 @@ This document outlines the implementation tasks for the Food Menu System, a REST
 
 - [ ] T032 Create API contract specifications
   - **Implementation**: PENDING - Contract files needed
-  - **Code Reference**: Should be `specs/food_menu_system/contracts/`
+  - **Code Reference**: Should be `docs/specs/food_menu_system/contracts/`
   - **Test Reference**: Contract verification tests
   - **Spec Reference**: [api_specification.md](api_specification.md)
   - Document all endpoints with request/response examples

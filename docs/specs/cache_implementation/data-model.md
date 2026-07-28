@@ -14,7 +14,7 @@ This document defines the data structures for initializing the in-memory cache w
 
 ## Database Schema Reference (Source of Truth)
 
-From `specs/food_menu_system/database/database_schema.md`:
+From `docs/specs/food_menu_system/database/database_schema.md`:
 
 ```sql
 CREATE TABLE IF NOT EXISTS food_category (
