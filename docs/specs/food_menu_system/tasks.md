@@ -439,9 +439,41 @@ This document outlines the implementation tasks for the Food Menu System, a REST
 - [ ] T995 Receive notifications
 
 ## Parallel Tasks
-- [ ] T999 Implement error handling across all endpoints
-- [ ] T998 Set up logging throughout the application
-- [ ] T997 Implement consistent error responses
+- [X] T999 Implement error handling across all endpoints
+- [X] T998 Set up logging throughout the application
+- [X] T997 Implement consistent error responses
+- [ ] T011 Create database tables with tenant_id columns
+- [ ] T012 Set up row-level security policies
+- [ ] T013 Set up database connection with tenant context
+- [ ] T014 Implement repository pattern
+- [ ] T015 Create migration scripts
+- [ ] T016 Apply initial migrations
+- [ ] T021 Define Go structs for all entities
+- [ ] T022 Create DTOs for data transfer
+- [ ] T023 Set up validation for input data
+- [ ] T024 Implement error handling
+- [ ] T033 Set up router with Gin
+- [ ] T034 Implement middleware stack
+- [ ] T035 Implement Food Items endpoints
+- [ ] T036 Implement Categories endpoints
+- [ ] T037 Implement Weekly Menus endpoints
+- [ ] T038 Implement Catering Menus endpoints
+- [ ] T039 Implement Menu Items endpoints
+- [ ] T040 Implement Orders endpoints
+- [ ] T041 Implement Notifications endpoints
+- [ ] T051 Create service interfaces
+- [ ] T052 Implement business logic
+- [ ] T053 Implement JWT-based authentication
+- [ ] T054 Set up role-based access control
+- [ ] T061 Write unit tests for services
+- [ ] T062 Write unit tests for handlers
+- [ ] T063 Test API endpoints with mock database
+- [ ] T064 Test service integrations
+- [ ] T071 Create Dockerfile for application
+- [ ] T072 Create Dockerfile for database
+- [ ] T073 Set up docker-compose.yml
+- [ ] T074 Set up CI pipeline
+- [ ] T075 Set up CD pipeline
 
 ## Dependencies Between Tasks
 - Database schema implementation (T011) must be completed before ORM setup (T013)

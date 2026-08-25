@@ -14,8 +14,8 @@ import (
 // Server represents the HTTP server structure
 type Server struct {
 	Router *gin.Engine
-	DB     *sqlx.DB
-	Logger *logger.Logger
+	DB      *sqlx.DB
+	Logger  *logger.Logger
 }
 
 // NewServer creates a new server instance with proper initialization
@@ -25,7 +25,7 @@ func NewServer(db *sqlx.DB, l *logger.Logger) *Server {
 	return &Server{
 		Router: router,
 		DB:     db,
-		Logger: l,
+		Logger:  l,
 	}
 }
 
@@ -47,14 +47,21 @@ func SetupRoutes(
 	l *logger.Logger,
 	handler *handlers.FoodItemHandler,
 ) {
-	// Food items API
+	// Food categories API
 	v1 := router.Group("/api/v1")
-	{
-		v1.GET("/food-items", handler.GetFoodItems)
-		v1.POST("/food-items", handler.CreateFoodItem)
-		v1.PUT("/food-items/:id", handler.UpdateFoodItem)
-		v1.DELETE("/food-items/:id", handler.DeleteFoodItem)
-	}
+
+	var foodCategoryHandler = handlers.NewFoodCategoryHandler(nil, l)
+
+	v1.GET("/categories", foodCategoryHandler.ListCategories)
+	v1.POST("/categories", foodCategoryHandler.CreateCategory)
+	v1.PUT("/categories/:id", foodCategoryHandler.UpdateCategory)
+	v1.DELETE("/categories/:id", foodCategoryHandler.DeleteCategory)
+
+	// Food items API
+	v1.GET("/food-items", handler.GetFoodItems)
+	v1.POST("/food-items", handler.CreateFoodItem)
+	v1.PUT("/food-items/:id", handler.UpdateFoodItem)
+	v1.DELETE("/food-items/:id", handler.DeleteFoodItem)
 
 	// Initialize tenant ID in context (for middleware that needs it)
 	router.Use(func(c *gin.Context) {

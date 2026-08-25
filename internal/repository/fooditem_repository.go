@@ -50,9 +50,9 @@ func (r *PostgreSQLFoodItemRepository) Create(ctx context.Context, f *models.Foo
 	r.Logger.Info(ctx, "Create: Creating new food item", "tenant_id", r.TenantID, "id", f.ID, "name", f.Name)
 
 	// Use Exec to insert the record (since we know the UUID)
-	query := `INSERT INTO food_item (id, name, description, price, category_id, tenant_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
+	query := `INSERT INTO food_item (id, name, description, price, category_id, availability_status, tenant_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
 	result, err := r.DB.Exec(query,
-		f.ID, f.Name, f.Description, f.Price, f.CategoryID, r.TenantID, &now, &now)
+		f.ID, f.Name, f.Description, f.Price, f.CategoryID, f.AvailabilityStatus, r.TenantID, &now, &now)
 	if err != nil {
 		r.Logger.Error(ctx, "Create: Failed to create food item", "tenant_id", r.TenantID, "id", f.ID, "error", err)
 		return err

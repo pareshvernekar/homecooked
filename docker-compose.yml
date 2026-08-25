@@ -8,4 +8,4 @@ services:
     ports:
        - "5432:5432"
     volumes:
-       - ./specs/food_menu_system/database/database_schema.sql:/docker-entrypoint-initdb.d/init.sql
+       - .docs/specs/food_menu_system/database/database_schema.sql:/docker-entrypoint-initdb.d/init.sql

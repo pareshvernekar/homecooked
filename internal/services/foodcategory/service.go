@@ -87,7 +87,60 @@ func (s *FoodCategoryService) GetCategoryByName(ctx context.Context, categoryNam
 			return cat, nil
 		}
 	}
+
 	s.logger.Error(ctx, "GetCategoryByName: Category name not found in tenant's catalog",
 		"category_name", categoryName, "tenant_id", tenantID)
 	return nil, fmt.Errorf("category '%s' not found in tenant %s's catalog", categoryName, tenantID)
+}
+
+// CreateCategory creates a new food category for the current tenant
+func (s *FoodCategoryService) CreateCategory(ctx context.Context, category *models.FoodCategory) error {
+	s.logger.Info(ctx, "CreateCategory: Creating new food category", "category_id", category.ID, "name", category.Name)
+
+	err := s.repository.Create(ctx, category)
+	if err != nil {
+		s.logger.Error(ctx, "CreateCategory: Failed to create food category in database", "category_id", category.ID, "error", err)
+		return err
+	}
+
+	s.logger.Info(ctx, "CreateCategory: Successfully created food category", "category_id", category.ID)
+	return nil
+}
+
+// UpdateCategory updates an existing food category by its ID
+func (s *FoodCategoryService) UpdateCategory(ctx context.Context, category *models.FoodCategory) (int64, error) {
+	s.logger.Info(ctx, "UpdateCategory: Updating food category", "category_id", category.ID)
+
+	rowsAffected, err := s.repository.Update(ctx, category)
+	if err != nil {
+		s.logger.Error(ctx, "UpdateCategory: Failed to update food category", "category_id", category.ID, "error", err)
+		return 0, err
+	}
+
+	if rowsAffected == 0 {
+		s.logger.Error(ctx, "UpdateCategory: Category not found for update", "category_id", category.ID)
+		return 0, fmt.Errorf("food category not found with id %s", category.ID)
+	}
+
+	s.logger.Info(ctx, "UpdateCategory: Successfully updated food category", "category_id", category.ID, "rows_updated", rowsAffected)
+	return rowsAffected, nil
+}
+
+// DeleteCategory deletes a food category by its ID (soft delete - sets is_active = false)
+func (s *FoodCategoryService) DeleteCategory(ctx context.Context, tenantID string, id string) (int64, error) {
+	s.logger.Info(ctx, "DeleteCategory: Deleting food category", "tenant_id", tenantID, "id", id)
+
+	rowsAffected, err := s.repository.Delete(ctx, tenantID, id)
+	if err != nil {
+		s.logger.Error(ctx, "DeleteCategory: Failed to delete food category", "tenant_id", tenantID, "category_id", id, "error", err)
+		return 0, err
+	}
+
+	if rowsAffected == 0 {
+		s.logger.Error(ctx, "DeleteCategory: Category not found for deletion", "tenant_id", tenantID, "category_id", id)
+		return 0, fmt.Errorf("food category not found with id %s", id)
+	}
+
+	s.logger.Info(ctx, "DeleteCategory: Successfully deleted food category", "tenant_id", tenantID, "id", id, "rows_deleted", rowsAffected)
+	return rowsAffected, nil
 }
