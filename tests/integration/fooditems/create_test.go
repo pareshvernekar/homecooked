@@ -14,6 +14,7 @@ import (
 	"github.com/pareshvernekar/homecooked/internal/repository"
 	"github.com/pareshvernekar/homecooked/internal/services/foodcategory"
 	"github.com/pareshvernekar/homecooked/internal/services/fooditem"
+	"github.com/pareshvernekar/homecooked/internal/views"
 	testdb "github.com/pareshvernekar/homecooked/tests/db"
 	testhttp "github.com/pareshvernekar/homecooked/tests/http"
 	"github.com/stretchr/testify/require"
@@ -59,6 +60,7 @@ func TestCreateFoodItem(t *testing.T) {
 	}
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/food-items", strings.NewReader(bodyBytes.String()))
+	req.Header.Set("X-Tenant-ID", "test-tenant")
 
 	ctx, resp := testhttp.CreateTestContext(req)
 
@@ -76,7 +78,7 @@ func TestCreateFoodItem(t *testing.T) {
 	}
 
 	// Parse response
-	var response testhttp.SuccessResponse
+	var response views.SuccessResponse
 	if err := json.Unmarshal(resp.Body.Bytes(), &response); err != nil {
 		t.Fatalf("Failed to parse response")
 	}
@@ -91,7 +93,7 @@ func TestCreateFoodItem(t *testing.T) {
 
 	// Verify database state - insert into the category table
 	var category models.FoodCategory
-	query := `SELECT id, tenant_id, name, description, is_active, created_at, updated_at FROM food_category WHERE id = $1`
+	query := `SELECT id, tenant_id, name, COALESCE(description, '') as description, is_active, created_at, updated_at FROM food_category WHERE id = $1`
 	err = db.DB.Get(&category, query, testTenant.ID)
 	if err != nil {
 		t.Fatalf("Failed to verify database state: %v", err)

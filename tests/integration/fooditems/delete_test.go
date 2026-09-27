@@ -1,17 +1,19 @@
 package fooditems
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/pareshvernekar/homecooked/internal/handlers"
 	logger "github.com/pareshvernekar/homecooked/internal/logger"
+	"github.com/pareshvernekar/homecooked/internal/repository"
+	"github.com/pareshvernekar/homecooked/internal/services/foodcategory"
+	"github.com/pareshvernekar/homecooked/internal/services/fooditem"
 	testdb "github.com/pareshvernekar/homecooked/tests/db"
 	testhttp "github.com/pareshvernekar/homecooked/tests/http"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,35 +34,34 @@ func TestDeleteFoodItem(t *testing.T) {
 
 	categoryID, _ := SetupFoodCategory(t.Context(), db.DB)
 
-	err = InsertFoodItem(t.Context(), db.DB, "Chicken Biryani", "Rich biryani", 249.99, categoryID, "test-tenant")
+	itemID, err := InsertFoodItem(t.Context(), db.DB, "Chicken Biryani", "Rich biryani", 249.99, categoryID, "test-tenant")
 	if err != nil {
 		t.Fatalf("Failed to insert item: %v", err)
 	}
 
-	itemUUID := "550e8400-e29b-41d4-a716-446655440000" // Sample UUID
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/food-items/"+itemUUID, strings.NewReader(""))
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/food-items/"+itemID, strings.NewReader(""))
 
 	ctx, resp := testhttp.CreateTestContext(req)
-
+	ctx.Params = gin.Params{
+		{Key: "id", Value: itemID},
+	}
 	logger := logger.NewLogger()
-	handler := handlers.NewFoodItemHandler(nil, logger)
+	foodCategoryRepository := repository.NewFoodCategoryRepository(db.DB, logger, "test-tenant")
+	foodCategoryService := foodcategory.NewFoodCategoryService(foodCategoryRepository, logger)
+	foodItemRepository := repository.NewFoodItemRepository(db.DB, logger, "test-tenant")
+	foodItemService := fooditem.NewFoodItemService(foodItemRepository, logger, foodCategoryService)
+	handler := handlers.NewFoodItemHandler(foodItemService, logger)
 	handler.DeleteFoodItem(ctx)
 
 	if resp.Code != http.StatusNoContent {
 		t.Errorf("Expected status 204 but got %d. Body: %s", resp.Code, resp.Body.String())
 	}
 
-	var response testhttp.SuccessResponse
-	err = json.Unmarshal(resp.Body.Bytes(), &response)
-	if err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
-	}
-
-	assert.Equal(t, true, response.Success, "Delete should return success")
-	t.Logf("Delete test passed - Item deleted successfully")
+	// For 204 No Content, we expect empty body - no JSON parsing needed
+	t.Logf("✓ Delete test passed - Item deleted successfully (returned 204 No Content)")
 }
 
-// DeleteNonExistentFoodItemTest tests deletion of non-existent food item
+// TestDeleteNonExistentFoodItem tests deletion of non-existent food item
 func TestDeleteNonExistentFoodItem(t *testing.T) {
 	db, err := testdb.NewDatabaseHelper(t.Context())
 	if err != nil {
@@ -78,21 +79,23 @@ func TestDeleteNonExistentFoodItem(t *testing.T) {
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/food-items/non-existent-id", strings.NewReader(""))
 
 	ctx, resp := testhttp.CreateTestContext(req)
-
+	ctx.Params = gin.Params{
+		{Key: "id", Value: "non-existent-id"},
+	}
 	logger := logger.NewLogger()
-	handler := handlers.NewFoodItemHandler(nil, logger)
+	foodCategoryRepository := repository.NewFoodCategoryRepository(db.DB, logger, "test-tenant")
+	foodCategoryService := foodcategory.NewFoodCategoryService(foodCategoryRepository, logger)
+	foodItemRepository := repository.NewFoodItemRepository(db.DB, logger, "test-tenant")
+	foodItemService := fooditem.NewFoodItemService(foodItemRepository, logger, foodCategoryService)
+	handler := handlers.NewFoodItemHandler(foodItemService, logger)
 	handler.DeleteFoodItem(ctx)
 
-	if resp.Code != http.StatusNotFound {
-		t.Errorf("Expected status 404 but got %d. Body: %s", resp.Code, resp.Body.String())
+	// Per user requirement: when deleting non-existent item, return 204 No Content (not 404)
+	// This is acceptable behavior since the item doesn't exist for this tenant
+	if resp.Code != http.StatusNoContent {
+		t.Errorf("Expected status 204 No Content but got %d. Body: %s", resp.Code, resp.Body.String())
 	}
 
-	var response testhttp.SuccessResponse
-	err = json.Unmarshal(resp.Body.Bytes(), &response)
-	if err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
-	}
-
-	assert.Equal(t, true, response.Success, "Delete should return success")
-	t.Logf("Non-existent delete test passed - 404 returned as expected")
+	// For 204 No Content, we expect empty body - no JSON parsing needed
+	t.Logf("✓ Non-existent delete test passed - 204 No Content returned as per requirement (item doesn't exist)")
 }

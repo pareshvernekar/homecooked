@@ -55,7 +55,7 @@ func (s *MockFoodItemService) Update(ctx context.Context, id string, updateReq *
 	return nil
 }
 
-func (s *MockFoodItemService) Delete(ctx context.Context, id string, tenantID string) (int64, error) {
+func (s *MockFoodItemService) Delete(ctx context.Context, tenantID string, id string) (int64, error) {
 	return 1, nil
 }
 func TestNewFoodItemHandler(t *testing.T) {

@@ -122,7 +122,7 @@ func SetUserContext(ctx context.Context, db *sqlx.DB, tenantID string) error {
 func CreateTestTenant(ctx context.Context, db *sqlx.DB) (*fixtures.TenantFixture, error) {
 	id := uuid.New().String()
 	tenantID := "test-tenant"
-	query := `INSERT INTO food_category (id, name, tenant_id, is_active, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
+	query := `INSERT INTO food_category (id, name, tenant_id, is_active, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)`
 
 	now := time.Now().UTC().UnixMilli()
 
@@ -138,7 +138,7 @@ func CreateTestTenant(ctx context.Context, db *sqlx.DB) (*fixtures.TenantFixture
 	}
 
 	return &fixtures.TenantFixture{
-		ID:        tenantID,
+		ID:        id,
 		Name:      "vegetarian",
 		CreatedAt: now,
 		Cleanup:   cleanup,

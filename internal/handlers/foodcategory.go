@@ -14,8 +14,8 @@ import (
 
 // FoodCategoryHandler handles food category related operations
 type FoodCategoryHandler struct {
-	service FoodCategoryService
-	Logger  *logger.Logger
+	service  FoodCategoryService
+	Logger   *logger.Logger
 }
 
 // NewFoodCategoryHandler creates a new instance of FoodCategoryHandler with dependency injection
@@ -100,7 +100,7 @@ func (h *FoodCategoryHandler) CreateCategory(c *gin.Context) {
 	h.Logger.Info(ctx, "CreateCategory: Request JSON parsed successfully")
 
 	categoryName := ""
-	if val, ok := createRequest["category_name"]; ok && val != nil {
+	if val, ok := createRequest["name"]; ok && val != nil {
 		categoryName = val.(string)
 	}
 
@@ -110,14 +110,22 @@ func (h *FoodCategoryHandler) CreateCategory(c *gin.Context) {
 		description = d
 	}
 
+	// Validate that categoryName is not blank
+	if categoryName == "" {
+		duration := time.Since(startTime).Milliseconds()
+		h.Logger.Error(ctx, "CreateCategory: Category name cannot be blank", "duration_ms", duration)
+		c.JSON(http.StatusBadRequest, views.ErrorResponse{Success: false, ErrorCode: "VALIDATION_ERROR", Message: "Category name is required and cannot be blank", Timestamp: time.Now().UTC(), Detail: "name must be provided"})
+		return
+	}
+
 	category := &models.FoodCategory{
-		ID:          "",
+		ID:            "",
 		TenantID:    c.GetString(middleware.TenantIDKey),
 		Name:        categoryName,
-		Description: description,
-		IsActive:    true,
-		CreatedAt:   time.Now().UTC().UnixMilli(),
-		UpdatedAt:   time.Now().UTC().UnixMilli(),
+		Description:  description,
+		IsActive:     true,
+		CreatedAt:    time.Now().UTC().UnixMilli(),
+		UpdatedAt:    time.Now().UTC().UnixMilli(),
 	}
 
 	if err := h.service.CreateCategory(ctx, category); err != nil {
@@ -130,7 +138,7 @@ func (h *FoodCategoryHandler) CreateCategory(c *gin.Context) {
 	duration := time.Since(startTime).Milliseconds()
 	h.Logger.Info(ctx, "CreateCategory: Food category created successfully", "duration_ms", duration)
 
-	c.JSON(http.StatusCreated, gin.H{"success": true, "message": "Food category created successfully"})
+	c.JSON(http.StatusCreated, views.SuccessResponse{Success: true, Message: "Food category created successfully", Data: category})
 }
 
 // UpdateCategory updates an existing food category (full update)
@@ -174,6 +182,14 @@ func (h *FoodCategoryHandler) UpdateCategory(c *gin.Context) {
 		}
 	}
 
+	// Validate that name is not blank — a category update must include a name
+	if name == "" {
+		duration := time.Since(startTime).Milliseconds()
+		h.Logger.Error(ctx, "UpdateCategory: Category name cannot be blank", "duration_ms", duration)
+		c.JSON(http.StatusBadRequest, views.ErrorResponse{Success: false, ErrorCode: "VALIDATION_ERROR", Message: "Category name is required and cannot be blank", Timestamp: time.Now().UTC(), Detail: "name must be provided"})
+		return
+	}
+
 	category := &models.FoodCategory{
 		ID:          id,
 		TenantID:    c.GetString(middleware.TenantIDKey),
@@ -194,7 +210,7 @@ func (h *FoodCategoryHandler) UpdateCategory(c *gin.Context) {
 	duration := time.Since(startTime).Milliseconds()
 	h.Logger.Info(ctx, "UpdateCategory: Food category updated successfully", "duration_ms", duration)
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Food category updated successfully"})
+	c.JSON(http.StatusOK, views.SuccessResponse{Success: true, Message: "Food category updated successfully", Data: category})
 }
 
 // DeleteCategory deletes a specific food category (soft delete - sets is_active = false)

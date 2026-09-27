@@ -8,19 +8,19 @@ import (
 
 // FoodItem represents a food menu item in the database
 type FoodItem struct {
-	ID                 string  `db:"id"`
-	TenantID           string  `db:"tenant_id"`
-	Name               string  `db:"name"`
-	Description        string  `db:"description,omitempty"`
-	CategoryID         string  `db:"category_id"`
-	Price              float64 `db:"price"`
-	ImageURL           string  `db:"image_url,omitempty"`
-	Avoidance          string  `db:"avoidance,omitempty"`
-	IsVegetarian       bool    `db:"is_vegetarian"`
-	AvailabilityStatus string  `db:"availability_status"`
-	CreatedAt          int64   `db:"created_at,omitempty"`
-	UpdatedAt          int64   `db:"updated_at,omitempty"`
-	DeliveredAt        int64   `db:"delivered_at,omitempty"`
+	ID                 string  `db:"id" json:"id"`
+	TenantID           string  `db:"tenant_id" json:"tenant_id"`
+	Name               string  `db:"name" json:"name"`
+	Description        string  `db:"description,omitempty" json:"description,omitempty"`
+	CategoryID         string  `db:"category_id" json:"category_id"`
+	Price              float64 `db:"price" json:"price"`
+	ImageURL           string  `db:"image_url,omitempty" json:"image_url,omitempty"`
+	Avoidance          string  `db:"avoidance,omitempty" json:"avoidance,omitempty"`
+	IsVegetarian       bool    `db:"is_vegetarian" json:"is_vegetarian"`
+	AvailabilityStatus string  `db:"availability_status" json:"availability_status"`
+	CreatedAt          int64   `db:"created_at,omitempty" json:"created_at,omitempty"`
+	UpdatedAt          int64   `db:"updated_at,omitempty" json:"updated_at,omitempty"`
+	DeliveredAt        int64   `db:"delivered_at,omitempty" json:"delivered_at,omitempty"`
 }
 
 // FoodItemCreateRequest represents the request payload for creating a food item

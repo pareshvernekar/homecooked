@@ -85,10 +85,8 @@ func TestRequest(method string, path string, body map[string]interface{}, extraH
 func CreateTestContext(req *http.Request) (*gin.Context, *httptest.ResponseRecorder) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
-	c := &gin.Context{
-		Request: req,
-	}
-
+	c, _ := gin.CreateTestContext(w)
+	c.Request = req
 	// Set default tenant ID if not already set
 	if req.Header.Get("X-Tenant-ID") == "" {
 		req.Header.Set("X-Tenant-ID", "test-tenant")

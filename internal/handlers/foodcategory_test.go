@@ -89,22 +89,25 @@ func NewFoodCategoryService(repo foodcategory.FoodCategoryRepository, l *logger.
 
 // MockFoodCategoryRepository mocks the FoodCategoryRepository interface for testing
 type MockFoodCategoryRepository struct {
+	TenantID   string
 	categories []models.FoodCategory
 }
 
-func (m *MockFoodCategoryRepository) ListByTenant(ctx context.Context, tenantID string) ([]*models.FoodCategory, error) {
+func (m *MockFoodCategoryRepository) ListByTenant(ctx context.Context) ([]*models.FoodCategory, error) {
 	var result []*models.FoodCategory
-	for _, cat := range m.categories {
-		if cat.TenantID == tenantID {
+	for i := range m.categories {
+		cat := m.categories[i]
+		if m.TenantID == "" || cat.TenantID == m.TenantID {
 			result = append(result, &cat)
 		}
 	}
 	return result, nil
 }
 
-func (m *MockFoodCategoryRepository) GetByID(ctx context.Context, tenantID string, id string) (*models.FoodCategory, error) {
-	for _, cat := range m.categories {
-		if cat.ID == id && cat.TenantID == tenantID {
+func (m *MockFoodCategoryRepository) GetByID(ctx context.Context, id string) (*models.FoodCategory, error) {
+	for i := range m.categories {
+		cat := m.categories[i]
+		if cat.ID == id && (m.TenantID == "" || cat.TenantID == m.TenantID) {
 			return &cat, nil
 		}
 	}
@@ -118,7 +121,7 @@ func (m *MockFoodCategoryRepository) Create(ctx context.Context, category *model
 
 func (m *MockFoodCategoryRepository) Update(ctx context.Context, category *models.FoodCategory) (int64, error) {
 	for i, cat := range m.categories {
-		if cat.ID == category.ID && cat.TenantID == category.TenantID {
+		if cat.ID == category.ID && (m.TenantID == "" || cat.TenantID == m.TenantID) {
 			m.categories[i] = *category
 			return 1, nil
 		}
@@ -126,9 +129,9 @@ func (m *MockFoodCategoryRepository) Update(ctx context.Context, category *model
 	return 0, nil
 }
 
-func (m *MockFoodCategoryRepository) Delete(ctx context.Context, tenantID string, id string) (int64, error) {
+func (m *MockFoodCategoryRepository) Delete(ctx context.Context, id string) (int64, error) {
 	for i, cat := range m.categories {
-		if cat.ID == id && cat.TenantID == tenantID {
+		if cat.ID == id && (m.TenantID == "" || cat.TenantID == m.TenantID) {
 			m.categories = append(m.categories[:i], m.categories[i+1:]...)
 			return 1, nil
 		}
@@ -205,6 +208,9 @@ func TestGetCategoryByID_Success(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = req
 	c.Set(middleware.TenantIDKey, "tenant_1")
+	c.Params = gin.Params{
+		{Key: "id", Value: "cat1"},
+	}
 	mockRepo.categories = []models.FoodCategory{
 		{ID: "cat1", TenantID: "tenant_1", Name: "vegetarian", Description: "plant-based", CreatedAt: time.Now().UTC().UnixMilli(), UpdatedAt: time.Now().UTC().UnixMilli()},
 	}
@@ -228,6 +234,9 @@ func TestGetCategoryByID_NotFound(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = req
 	c.Set(middleware.TenantIDKey, "tenant_1")
+	c.Params = gin.Params{
+		{Key: "id", Value: "non-existent-id"},
+	}
 	mockRepo.categories = []models.FoodCategory{
 		{ID: "cat1", TenantID: "tenant_1", Name: "vegetarian", Description: "plant-based", CreatedAt: time.Now().UTC().UnixMilli(), UpdatedAt: time.Now().UTC().UnixMilli()},
 	}
@@ -245,7 +254,7 @@ func TestCreateCategory_Success(t *testing.T) {
 	service := foodcategory.NewFoodCategoryService(mockRepo, l)
 	handler := NewFoodCategoryHandler(service, l)
 
-	jsonData := `{"category_name": "desserts", "description": "sweet treats"}`
+	jsonData := `{"name": "desserts", "description": "sweet treats"}`
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/categories", bytes.NewBufferString(jsonData))
 	w := httptest.NewRecorder()
@@ -256,7 +265,7 @@ func TestCreateCategory_Success(t *testing.T) {
 
 	handler.CreateCategory(c)
 
-	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, http.StatusCreated, w.Code)
 }
 
 // TestCreateCategory_InvalidBody tests creation with invalid request body
@@ -297,6 +306,9 @@ func TestUpdateCategory_Success(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = req
 	c.Set(middleware.TenantIDKey, "tenant_1")
+	c.Params = gin.Params{
+		{Key: "id", Value: "cat1"},
+	}
 	mockRepo.categories = []models.FoodCategory{
 		{ID: "cat1", TenantID: "tenant_1", Name: "vegetarian", Description: "plant-based", CreatedAt: time.Now().UTC().UnixMilli(), UpdatedAt: time.Now().UTC().UnixMilli()},
 	}
@@ -322,6 +334,9 @@ func TestUpdateCategory_InvalidBody(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = req
 	c.Set(middleware.TenantIDKey, "tenant_1")
+	c.Params = gin.Params{
+		{Key: "id", Value: "cat1"},
+	}
 	mockRepo.categories = []models.FoodCategory{
 		{ID: "cat1", TenantID: "tenant_1", Name: "vegetarian", Description: "plant-based", CreatedAt: time.Now().UTC().UnixMilli(), UpdatedAt: time.Now().UTC().UnixMilli()},
 	}
@@ -345,6 +360,9 @@ func TestDeleteCategory_Success(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = req
 	c.Set(middleware.TenantIDKey, "tenant_1")
+	c.Params = gin.Params{
+		{Key: "id", Value: "cat1"},
+	}
 	mockRepo.categories = []models.FoodCategory{
 		{ID: "cat1", TenantID: "tenant_1", Name: "vegetarian", Description: "plant-based", CreatedAt: time.Now().UTC().UnixMilli(), UpdatedAt: time.Now().UTC().UnixMilli()},
 	}

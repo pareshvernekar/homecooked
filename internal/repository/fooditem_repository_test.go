@@ -39,7 +39,7 @@ func TestPostgreSQLFoodItemRepository_ListByTenant_Success(t *testing.T) {
 		Logger:   logger.NewLogger(),
 	}
 
-	items, count, err := repo.ListByTenant(t.Context(), "tenant-123", 0, 10)
+	items, count, err := repo.ListByTenant(t.Context(), 0, 10)
 
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), count)
@@ -79,7 +79,7 @@ func TestPostgreSQLFoodItemRepository_ListByTenant_EmptyResult(t *testing.T) {
 		Logger:   logger.NewLogger(),
 	}
 
-	items, count, err := repo.ListByTenant(t.Context(), "tenant-456", 0, 10)
+	items, count, err := repo.ListByTenant(t.Context(), 0, 10)
 
 	require.NoError(t, err)
 	assert.Empty(t, items)
@@ -109,7 +109,7 @@ func TestPostgreSQLFoodItemRepository_ListByTenant_ErrorMessageOnFailure(t *test
 		Logger:   logger.NewLogger(),
 	}
 
-	items, count, err := repo.ListByTenant(t.Context(), "tenant-xyz", 0, 10)
+	items, count, err := repo.ListByTenant(t.Context(), 0, 10)
 
 	require.Error(t, err)
 	assert.Nil(t, items)
@@ -159,7 +159,7 @@ func TestPostgreSQLFoodItemRepository_ListByTenant_TenantIsolationRLS(t *testing
 	}
 
 	// Query for tenant A
-	itemsA, countA, errA := repoATenant.ListByTenant(t.Context(), "tenant-A", 0, 10)
+	itemsA, countA, errA := repoATenant.ListByTenant(t.Context(), 0, 10)
 	require.NoError(t, errA)
 	assert.Equal(t, int64(2), countA)
 	for _, item := range itemsA {
@@ -167,7 +167,7 @@ func TestPostgreSQLFoodItemRepository_ListByTenant_TenantIsolationRLS(t *testing
 	}
 
 	// Query for tenant B
-	itemsB, countB, errB := repoBTenant.ListByTenant(t.Context(), "tenant-B", 0, 10)
+	itemsB, countB, errB := repoBTenant.ListByTenant(t.Context(), 0, 10)
 	require.NoError(t, errB)
 	assert.Equal(t, int64(2), countB)
 	for _, item := range itemsB {
@@ -203,7 +203,7 @@ func TestPostgreSQLFoodItemRepository_ListByTenant_MultipleItemsWithNullDescript
 		Logger:   logger.NewLogger(),
 	}
 
-	items, count, err := repo.ListByTenant(t.Context(), "tenant-xyz", 0, 10)
+	items, count, err := repo.ListByTenant(t.Context(), 0, 10)
 
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), count)
@@ -245,7 +245,7 @@ func TestPostgreSQLFoodItemRepository_GetByID_Success(t *testing.T) {
 		Logger:   logger.NewLogger(),
 	}
 
-	item, err := repo.GetByID(t.Context(), "tenant-123", "item-uuid-123")
+	item, err := repo.GetByID(t.Context(), "item-uuid-123")
 
 	require.NoError(t, err)
 	assert.NotNil(t, item)
@@ -275,7 +275,7 @@ func TestPostgreSQLFoodItemRepository_GetByID_NotFound(t *testing.T) {
 		Logger:   logger.NewLogger(),
 	}
 
-	item, err := repo.GetByID(t.Context(), "tenant-123", "item-nonexistent")
+	item, err := repo.GetByID(t.Context(), "item-nonexistent")
 
 	require.Error(t, err, "Expected error for non-existent item")
 	assert.Nil(t, item)
@@ -301,7 +301,7 @@ func TestPostgreSQLFoodItemRepository_GetByID_ErrorMessageOnFailure(t *testing.T
 		Logger:   logger.NewLogger(),
 	}
 
-	item, err := repo.GetByID(t.Context(), "tenant-999", "item-uuid-xyz")
+	item, err := repo.GetByID(t.Context(), "item-uuid-xyz")
 
 	require.Error(t, err)
 	assert.Nil(t, item)
@@ -470,7 +470,7 @@ func TestPostgreSQLFoodItemRepository_Update_Success(t *testing.T) {
 		DeliveredAt:        0,
 	}
 
-	err = repo.Update(t.Context(), item)
+	err = repo.Update(t.Context(), item.ID, item)
 
 	require.NoError(t, err)
 	err = db.Close()
@@ -512,7 +512,7 @@ func TestPostgreSQLFoodItemRepository_Update_FailNotExists(t *testing.T) {
 		DeliveredAt:        0,
 	}
 
-	err = repo.Update(t.Context(), item)
+	err = repo.Update(t.Context(), item.ID, item)
 
 	require.NoError(t, err, "Expected error when updating non-existent item")
 	err = db.Close()
@@ -553,7 +553,7 @@ func TestPostgreSQLFoodItemRepository_Update_FailDatabaseError(t *testing.T) {
 		DeliveredAt:        0,
 	}
 
-	err = repo.Update(t.Context(), item)
+	err = repo.Update(t.Context(), item.ID, item)
 
 	require.Error(t, err)
 	err = db.Close()

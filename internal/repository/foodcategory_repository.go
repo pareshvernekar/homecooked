@@ -26,7 +26,7 @@ func NewFoodCategoryRepository(db *sqlx.DB, logger *logger.Logger, tenantID stri
 	}
 }
 
-// ListByTenant retrieves all food categories for a specific tenant
+// ListByTenant retrieves all food categories for the repository's tenant
 // Tenant ID is used as a filter clause to ensure row-level security isolation
 func (r *PostgreSQLFoodCategoryRepository) ListByTenant(ctx context.Context) ([]*models.FoodCategory, error) {
 	var categories []*models.FoodCategory
@@ -43,7 +43,7 @@ func (r *PostgreSQLFoodCategoryRepository) ListByTenant(ctx context.Context) ([]
 	return categories, nil
 }
 
-// GetByID retrieves a food category by its ID for a specific tenant
+// GetByID retrieves a food category by its ID for the repository's tenant
 // Tenant ID is used as a filter clause to ensure row-level security isolation
 func (r *PostgreSQLFoodCategoryRepository) GetByID(ctx context.Context, id string) (*models.FoodCategory, error) {
 	var category models.FoodCategory
@@ -96,7 +96,7 @@ func (r *PostgreSQLFoodCategoryRepository) Update(ctx context.Context, category 
 	return rowsAffected, nil
 }
 
-// Delete soft deletes a food category by its ID
+// Delete soft deletes a food category by its ID for the repository's tenant
 func (r *PostgreSQLFoodCategoryRepository) Delete(ctx context.Context, id string) (int64, error) {
 	r.Logger.Info(ctx, "Delete: Deleting food category", "tenant_id", r.TenantID, "id", id)
 	// Delete the food category - include tenant_id filter to ensure isolation

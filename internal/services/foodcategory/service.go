@@ -10,11 +10,11 @@ import (
 )
 
 type FoodCategoryRepository interface {
-	ListByTenant(ctx context.Context, tenantID string) ([]*models.FoodCategory, error)
-	GetByID(ctx context.Context, tenantID string, id string) (*models.FoodCategory, error)
+	ListByTenant(ctx context.Context) ([]*models.FoodCategory, error)
+	GetByID(ctx context.Context, id string) (*models.FoodCategory, error)
 	Create(ctx context.Context, category *models.FoodCategory) error
 	Update(ctx context.Context, category *models.FoodCategory) (int64, error)
-	Delete(ctx context.Context, tenantID string, id string) (int64, error)
+	Delete(ctx context.Context, id string) (int64, error)
 }
 
 // FoodCategoryService handles food category business logic
@@ -35,7 +35,7 @@ func NewFoodCategoryService(repo FoodCategoryRepository, l *logger.Logger) *Food
 func (s *FoodCategoryService) ListCategories(ctx context.Context, tenantID string) ([]*models.FoodCategory, error) {
 	s.logger.Info(ctx, "ListCategories: Fetching food categories for tenant", "tenant_id", tenantID)
 
-	categories, err := s.repository.ListByTenant(ctx, tenantID)
+	categories, err := s.repository.ListByTenant(ctx)
 	if err != nil {
 		s.logger.Error(ctx, "ListCategories: Failed to retrieve food categories from database", "tenant_id", tenantID, "error", err)
 		return nil, err
@@ -49,7 +49,7 @@ func (s *FoodCategoryService) ListCategories(ctx context.Context, tenantID strin
 func (s *FoodCategoryService) GetCategoryByID(ctx context.Context, categoryID string, tenantID string) (*models.FoodCategory, error) {
 	s.logger.Info(ctx, "GetCategoryByID: Fetching food category by ID", "category_id", categoryID, "tenant_id", tenantID)
 
-	categories, err := s.repository.ListByTenant(ctx, tenantID)
+	categories, err := s.repository.ListByTenant(ctx)
 	if err != nil {
 		s.logger.Error(ctx, "GetCategoryByID: Failed to retrieve food categories from database", "category_id", categoryID, "error", err)
 		return nil, err
@@ -72,7 +72,7 @@ func (s *FoodCategoryService) GetCategoryByName(ctx context.Context, categoryNam
 	s.logger.Info(ctx, "GetCategoryByName: Resolving category name to ID", "category_name", categoryName, "tenant_id", tenantID)
 
 	// Fetch all categories for the tenant
-	categories, err := s.repository.ListByTenant(ctx, tenantID)
+	categories, err := s.repository.ListByTenant(ctx)
 	if err != nil {
 		s.logger.Error(ctx, "GetCategoryByName: Failed to retrieve food categories", "error", err)
 		return nil, fmt.Errorf("failed to fetch categories for tenant %s: %w", tenantID, err)
@@ -130,7 +130,7 @@ func (s *FoodCategoryService) UpdateCategory(ctx context.Context, category *mode
 func (s *FoodCategoryService) DeleteCategory(ctx context.Context, tenantID string, id string) (int64, error) {
 	s.logger.Info(ctx, "DeleteCategory: Deleting food category", "tenant_id", tenantID, "id", id)
 
-	rowsAffected, err := s.repository.Delete(ctx, tenantID, id)
+	rowsAffected, err := s.repository.Delete(ctx, id)
 	if err != nil {
 		s.logger.Error(ctx, "DeleteCategory: Failed to delete food category", "tenant_id", tenantID, "category_id", id, "error", err)
 		return 0, err

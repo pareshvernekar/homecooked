@@ -33,6 +33,7 @@ func InitializeSchema(ctx context.Context, db *sqlx.DB) error {
 	    name VARCHAR(100) NOT NULL UNIQUE,
 	    description TEXT,
 	    tenant_id VARCHAR(50) NOT NULL,
+	    is_active BOOLEAN DEFAULT TRUE,
 	    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT,
 	    updated_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT
 	);
@@ -47,10 +48,11 @@ func InitializeSchema(ctx context.Context, db *sqlx.DB) error {
 	    image_url TEXT,
 	    avoidance TEXT,
 	    is_vegetarian BOOLEAN DEFAULT FALSE,
+	    is_active BOOLEAN DEFAULT TRUE,
 	    tenant_id VARCHAR(50) NOT NULL,
 	    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT,
 	    updated_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT,
-	    CONSTRAINT fk_category FOREIGN KEY (category_id) MATCHES (SELECT id FROM food_category WHERE tenant_id = current_setting('app.current_tenant_id'::text, false)::TEXT),
+	    CONSTRAINT fk_category FOREIGN KEY (category_id) REFERENCES food_category(id) ON DELETE CASCADE,
 	    CONSTRAINT valid_price CHECK (price >= 0)
 	);
 
@@ -67,37 +69,37 @@ func InitializeSchema(ctx context.Context, db *sqlx.DB) error {
 }
 
 // CreateFoodCategory creates a food category in the database
-func CreateFoodCategory(ctx context.Context, db *sqlx.DB, name string) (string, error) {
+func CreateFoodCategory(ctx context.Context, db *sqlx.DB, name string, tenantId string) (string, error) {
 	id := uuid.New().String()
 	desc := "Test category description"
 
-	query := `INSERT INTO food_category (id, tenant_id, name, description, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
+	query := `INSERT INTO food_category (id, tenant_id, name, description, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)`
 
-	var categoryID string
 	now := time.Now().UTC().UnixMilli()
-	_, err := db.ExecContext(ctx, query, id, "test-tenant", name, desc, now, now)
+	_, err := db.ExecContext(ctx, query, id, tenantId, name, desc, now, now)
 	if err != nil {
 		return "", err
 	}
 
-	return categoryID, nil
+	return id, nil
 }
 
 // InsertFoodItem inserts a food item into the database
-func InsertFoodItem(ctx context.Context, db *sqlx.DB, name, description string, price float64, categoryId string, tenantId string) error {
-	query := `INSERT INTO food_item (id, tenant_id, name, description, price, category_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`
+func InsertFoodItem(ctx context.Context, db *sqlx.DB, name, description string, price float64, categoryId string, tenantId string) (string, error) {
+	id := uuid.New().String()
+	query := `INSERT INTO food_item (id, tenant_id, name, description, price, availability_status, category_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
 
-	_, err := db.ExecContext(ctx, query, uuid.New().String(), "test-tenant", name, description, price, categoryId, time.Now().UTC().UnixMilli(), time.Now().UTC().UnixMilli())
+	_, err := db.ExecContext(ctx, query, id, tenantId, name, description, price, "available", categoryId, time.Now().UTC().UnixMilli(), time.Now().UTC().UnixMilli())
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	return nil
+	return id, nil
 }
 
 // SetupFoodCategory creates a test food category for all tests
 func SetupFoodCategory(ctx context.Context, db *sqlx.DB) (string, error) {
-	categoryID, err := CreateFoodCategory(ctx, db, "test-veg")
+	categoryID, err := CreateFoodCategory(ctx, db, "test-veg", "test-tenant")
 	if err != nil {
 		return "", err
 	}

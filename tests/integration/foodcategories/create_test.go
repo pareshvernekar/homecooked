@@ -14,11 +14,9 @@ import (
 	"github.com/pareshvernekar/homecooked/internal/repository"
 	"github.com/pareshvernekar/homecooked/internal/services/foodcategory"
 	"github.com/pareshvernekar/homecooked/internal/views"
-	"github.com/stretchr/testify/require"
-
-	"github.com/gin-gonic/gin"
-
 	testdb "github.com/pareshvernekar/homecooked/tests/db"
+	testhttp "github.com/pareshvernekar/homecooked/tests/http"
+	"github.com/stretchr/testify/require"
 )
 
 // TestCreateFoodCategory tests the Food Category creation API endpoint
@@ -62,27 +60,25 @@ func TestCreateFoodCategory(t *testing.T) {
 	}
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/food-categories", strings.NewReader(bodyBytes.String()))
-	w := httptest.NewRecorder()
-
+	req.Header.Set("X-Tenant-ID", "test-tenant")
 	// Create handler with test dependencies
 	logger := logger.NewLogger()
 	foodCategoryRepository := repository.NewFoodCategoryRepository(db.DB, logger, "test-tenant")
 	foodCategoryService := foodcategory.NewFoodCategoryService(foodCategoryRepository, logger)
 
 	handler := handlers.NewFoodCategoryHandler(foodCategoryService, logger)
-	c, _ := gin.CreateTestContext(w)
-	c.Request = req
-	c.Set("tenant_id", testTenant.ID)
 
-	handler.CreateCategory(c)
+	ctx, resp := testhttp.CreateTestContext(req)
 
-	if w.Code != http.StatusCreated {
-		t.Errorf("Expected status 201 but got %d. Body: %s", w.Code, w.Body.String())
+	handler.CreateCategory(ctx)
+
+	if resp.Code != http.StatusCreated {
+		t.Errorf("Expected status 201 but got %d. Body: %s", resp.Code, resp.Body.String())
 	}
 
 	// Parse response
 	var response views.SuccessResponse
-	err = json.Unmarshal(w.Body.Bytes(), &response)
+	err = json.Unmarshal(resp.Body.Bytes(), &response)
 	if err != nil {
 		t.Fatalf("Failed to parse response: %v", err)
 	}
@@ -91,7 +87,8 @@ func TestCreateFoodCategory(t *testing.T) {
 		t.Errorf("Response should be successful")
 	}
 
-	categoryID := response.Data.(string)
+	data := response.Data
+	categoryID := data.(map[string]interface{})["ID"].(string)
 	require.NotEmpty(t, categoryID, "Category ID should not be empty")
 	// Verify database state
 	err = VerifyDatabaseState(t, db.DB)
