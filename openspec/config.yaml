@@ -1,0 +1,37 @@
+schema: spec-driven
+
+context: | 
+  Go backend service. 
+  Stack: Go, AWS Lambda, DynamoDB, API Gateway, CDK, PostgreSQL.
+  Tests: Go testing package. 
+  Follow idiomatic Go and explicit error handling. 
+  OpenSpec specs define externally observable behavior. 
+  PostgreSQL is the application database.
+rules: 
+  proposal: 
+    - Keep concise; focus on why and what changes. 
+    - Identify affected capabilities only. 
+  specs: 
+    - Every behavioral requirement MUST have a stable alphanumeric ID.
+    - Requirement ID format: REQ<DOMAIN><NUMBER>. 
+    - Examples: REQORDER001, REQAUTH001, REQDDB001. 
+    - IDs MUST be unique and immutable. 
+    - Never reuse a deleted requirement ID. 
+    - Every scenario SHOULD have a scenario ID derived from its requirement ID. 
+    - Scenario ID format: <REQUIREMENT_ID>S<NUMBER>. 
+    - Example: REQORDER001S01.
+    - Describe observable behavior, not implementation. 
+    - Use concise Given/When/Then scenarios. 
+    - Include important error and edge cases. 
+  design: 
+    - Keep concise. 
+    - Identify affected Go packages, AWS resources, and data access patterns. 
+    - Mention important error handling and compatibility considerations. 
+    - Reference affected requirement IDs where useful.
+  tasks: 
+    - Every behavioral change must include code and tests. 
+    - Database schema changes must include the required migration. 
+    - Database changes must include appropriate tests.
+    - Tasks SHOULD reference the requirement IDs they implement.
+    - Update documentation only when externally observable behavior changes. 
+    - Keep tasks small and directly actionable.
