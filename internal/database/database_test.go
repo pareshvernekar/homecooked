@@ -203,9 +203,9 @@ func NewMockDB(tenantID string) *sqlx.DB {
 	}
 	sqlxDb := sqlx.NewDb(db, "sqlmock")
 
-	mock.ExpectExec(regexp.QuoteMeta("SET app.current_tenant_id = ?")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT set_config('app.current_tenant_id', $1, false)")).
 		WithArgs(sqlmock.AnyArg()).
-		WillReturnResult(sqlmock.NewResult(0, 1))
+		WillReturnRows(sqlmock.NewRows([]string{"set_config"}).AddRow(tenantID))
 	//	mock.ExpectQuery("SELECT 1").WillReturnRows(sqlmock.NewRows([]string{"result"}).AddRow())
 
 	sqlxDb.SetMaxOpenConns(defaultMaxOpenConns)

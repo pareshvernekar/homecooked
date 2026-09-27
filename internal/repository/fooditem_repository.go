@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/pareshvernekar/homecooked/internal/logger"
 	"github.com/pareshvernekar/homecooked/internal/models"
@@ -27,18 +28,17 @@ func NewFoodItemRepository(db *sqlx.DB, logger *logger.Logger, tenantID string) 
 	}
 }
 
-// GetByID retrieves a food item by its UUID
-func (r *PostgreSQLFoodItemRepository) GetByID(ctx context.Context, tenantID string, id string) (*models.FoodItem, error) {
+// GetByID retrieves a food item by its UUID for the repository's tenant
+func (r *PostgreSQLFoodItemRepository) GetByID(ctx context.Context, id string) (*models.FoodItem, error) {
 	var foodItem models.FoodItem
-	r.Logger.Info(ctx, "GetByID: Fetching food item for tenant", "tenant_id", tenantID, "id", id)
-	// Use explicit column selection to properly map pointer fields (time.Time pointers need explicit names)
-	query := `SELECT id, tenant_id, name, COALESCE(description, ''), COALESCE(price, 0), category_id, created_at, updated_at FROM food_item WHERE current_setting('app.current_tenant_id')::TEXT = $1 AND id = $2`
+	r.Logger.Info(ctx, "GetByID: Fetching food item for tenant", "tenant_id", r.TenantID, "id", id)
+	query := `SELECT id, tenant_id, name, COALESCE(description, '') as description, COALESCE(price, 0) as price, category_id, COALESCE(image_url, '') as image_url, COALESCE(avoidance, '') as avoidance, COALESCE(is_vegetarian, false) as is_vegetarian, COALESCE(availability_status, 'available') as availability_status, created_at, updated_at FROM food_item WHERE tenant_id = $1 AND id = $2`
 
-	if err := r.DB.Get(&foodItem, query, tenantID, id); err != nil {
-		r.Logger.Error(ctx, "GetByID: Failed to retrieve food item from database", "tenant_id", tenantID, "id", id, "error", err)
+	if err := r.DB.Get(&foodItem, query, r.TenantID, id); err != nil {
+		r.Logger.Error(ctx, "GetByID: Failed to retrieve food item from database", "tenant_id", r.TenantID, "id", id, "error", err)
 		return nil, err
 	}
-	r.Logger.Info(ctx, "GetByID: Successfully retrieved food item", "tenant_id", tenantID, "id", id)
+	r.Logger.Info(ctx, "GetByID: Successfully retrieved food item", "tenant_id", r.TenantID, "id", id)
 	return &foodItem, nil
 }
 
@@ -47,12 +47,15 @@ func (r *PostgreSQLFoodItemRepository) GetByID(ctx context.Context, tenantID str
 func (r *PostgreSQLFoodItemRepository) Create(ctx context.Context, f *models.FoodItem) error {
 	now := time.Now().UTC().UnixMilli()
 
+	if f.ID == "" {
+		f.ID = uuid.New().String()
+	}
+
 	r.Logger.Info(ctx, "Create: Creating new food item", "tenant_id", r.TenantID, "id", f.ID, "name", f.Name)
 
-	// Use Exec to insert the record (since we know the UUID)
-	query := `INSERT INTO food_item (id, name, description, price, category_id, tenant_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
+	query := `INSERT INTO food_item (id, name, description, price, category_id, availability_status, tenant_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
 	result, err := r.DB.Exec(query,
-		f.ID, f.Name, f.Description, f.Price, f.CategoryID, r.TenantID, &now, &now)
+		f.ID, f.Name, f.Description, f.Price, f.CategoryID, f.AvailabilityStatus, r.TenantID, now, now)
 	if err != nil {
 		r.Logger.Error(ctx, "Create: Failed to create food item", "tenant_id", r.TenantID, "id", f.ID, "error", err)
 		return err
@@ -70,32 +73,35 @@ func (r *PostgreSQLFoodItemRepository) Create(ctx context.Context, f *models.Foo
 }
 
 // Update updates an existing food item
-func (r *PostgreSQLFoodItemRepository) Update(ctx context.Context, foodItem *models.FoodItem) error {
-	r.Logger.Info(ctx, "Update: Updating food item", "tenant_id", r.TenantID, "id", foodItem.ID)
+func (r *PostgreSQLFoodItemRepository) Update(ctx context.Context, id string, foodItem *models.FoodItem) error {
+	r.Logger.Info(ctx, "Update: Updating food item", "tenant_id", r.TenantID, "id", id)
 
 	updatedAt := time.Now().UTC().UnixMilli()
-	query := `UPDATE food_item SET name = $1, description = $2, price = $3, category_id = $4, updated_at = $5 WHERE id = $6 AND current_setting('app.current_tenant_id')::TEXT = $7`
-	result, err := r.DB.Exec(query, foodItem.Name, foodItem.Description, foodItem.Price, foodItem.CategoryID, updatedAt, foodItem.ID, r.TenantID)
+	query := `UPDATE food_item SET name = $1, description = $2, price = $3, category_id = $4, image_url = $5, avoidance = $6, is_vegetarian = $7, availability_status = $8, updated_at = $9 WHERE id = $10 AND tenant_id = $11`
+	result, err := r.DB.Exec(query,
+		foodItem.Name, foodItem.Description, foodItem.Price, foodItem.CategoryID,
+		foodItem.ImageURL, foodItem.Avoidance, foodItem.IsVegetarian, foodItem.AvailabilityStatus,
+		updatedAt, id, r.TenantID)
 	if err != nil {
-		r.Logger.Error(ctx, "Update: Failed to update food item", "tenant_id", r.TenantID, "id", foodItem.ID, "error", err)
+		r.Logger.Error(ctx, "Update: Failed to update food item", "tenant_id", r.TenantID, "id", id, "error", err)
 		return err
 	}
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
-		r.Logger.Warn(ctx, "Update: No rows affected when updating food item", "tenant_id", r.TenantID, "id", foodItem.ID)
+		r.Logger.Warn(ctx, "Update: No rows affected when updating food item", "tenant_id", r.TenantID, "id", id)
 		return err // Update failed due to unique constraint or no match
 	}
 
-	r.Logger.Info(ctx, "Update: Successfully updated food item", "tenant_id", r.TenantID, "id", foodItem.ID, "rows_affected", rowsAffected)
+	r.Logger.Info(ctx, "Update: Successfully updated food item", "tenant_id", r.TenantID, "id", id, "rows_affected", rowsAffected)
 	return nil
 }
 
-// Delete removes a food item by its UUID
+// Delete removes a food item by its UUID for the repository's tenant
 func (r *PostgreSQLFoodItemRepository) Delete(ctx context.Context, id string) (int64, error) {
 	r.Logger.Info(ctx, "Delete: Deleting food item", "tenant_id", r.TenantID, "id", id)
 	updatedAt := time.Now().UTC().UnixMilli()
-	query := `UPDATE food_item SET is_active = FALSE, updated_at = $1 WHERE id = $2 AND current_setting('app.current_tenant_id')::TEXT = $3`
+	query := `UPDATE food_item SET is_active = FALSE, updated_at = $1 WHERE id = $2 AND tenant_id = $3`
 	result, err := r.DB.Exec(query, updatedAt, id, r.TenantID)
 	if err != nil {
 		r.Logger.Error(ctx, "Delete: Failed to delete food item", "tenant_id", r.TenantID, "id", id, "error", err)
@@ -112,28 +118,28 @@ func (r *PostgreSQLFoodItemRepository) Delete(ctx context.Context, id string) (i
 	return rowsAffected, nil
 }
 
-// ListByTenant retrieves paginated food items for a specific tenant
+// ListByTenant retrieves paginated food items for the repository's tenant
 // RLS policies ensure only tenant's data is returned
-func (r *PostgreSQLFoodItemRepository) ListByTenant(ctx context.Context, tenantID string, offset, limit int) ([]*models.FoodItem, int64, error) {
-	r.Logger.Info(ctx, "ListByTenant: Fetching paginated food items for tenant", "tenant_id", tenantID, "offset", offset, "limit", limit)
+func (r *PostgreSQLFoodItemRepository) ListByTenant(ctx context.Context, offset, limit int) ([]*models.FoodItem, int64, error) {
+	r.Logger.Info(ctx, "ListByTenant: Fetching paginated food items for tenant", "tenant_id", r.TenantID, "offset", offset, "limit", limit)
 
 	// Count total items for pagination
 	var total int64
-	countQuery := `SELECT COUNT(*) FROM food_item WHERE current_setting('app.current_tenant_id')::TEXT = $1`
-	if err := r.DB.Get(&total, countQuery, tenantID); err != nil {
-		r.Logger.Error(ctx, "ListByTenant: Failed to count total items for pagination", "tenant_id", tenantID, "error", err)
+	countQuery := `SELECT COUNT(*) FROM food_item WHERE tenant_id = $1`
+	if err := r.DB.Get(&total, countQuery, r.TenantID); err != nil {
+		r.Logger.Error(ctx, "ListByTenant: Failed to count total items for pagination", "tenant_id", r.TenantID, "error", err)
 		return nil, 0, err
 	}
 
 	// Select paginated items
 	var foodItems []*models.FoodItem
-	selectQuery := `SELECT id, tenant_id, name, COALESCE(description, '') as description, COALESCE(price, 0) as price, category_id as category_id, created_at, updated_at FROM food_item WHERE current_setting('app.current_tenant_id')::TEXT = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`
+	selectQuery := `SELECT id, tenant_id, name, COALESCE(description, '') as description, COALESCE(price, 0) as price, category_id as category_id, created_at, updated_at FROM food_item WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`
 
-	if err := r.DB.Select(&foodItems, selectQuery, tenantID, limit, offset); err != nil {
-		r.Logger.Error(ctx, "ListByTenant: Failed to retrieve paginated food items", "tenant_id", tenantID, "error", err)
+	if err := r.DB.Select(&foodItems, selectQuery, r.TenantID, limit, offset); err != nil {
+		r.Logger.Error(ctx, "ListByTenant: Failed to retrieve paginated food items", "tenant_id", r.TenantID, "error", err)
 		return nil, 0, err
 	}
 
-	r.Logger.Info(ctx, "ListByTenant: Successfully retrieved paginated food items", "tenant_id", tenantID, "offset", offset, "limit", limit, "total_count", total, "returned_count", len(foodItems))
+	r.Logger.Info(ctx, "ListByTenant: Successfully retrieved paginated food items", "tenant_id", r.TenantID, "offset", offset, "limit", limit, "total_count", total, "returned_count", len(foodItems))
 	return foodItems, total, nil
 }

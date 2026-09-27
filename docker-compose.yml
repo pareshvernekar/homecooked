@@ -1,11 +1,22 @@
 services:
   db:
-    image: postgres
-    container_name: homecooked
+    image: postgres:16-alpine
+    container_name: homecooked-db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: homecooked
     ports:
-       - "5432:5432"
+      - "5432:5432"
     volumes:
-       - ./specs/food_menu_system/database/database_schema.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./scripts/init:/docker-entrypoint-initdb.d:ro
+      - homecooked_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d homecooked"]
+      interval: 2s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+volumes:
+  homecooked_pgdata:

@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -73,28 +71,6 @@ func InitDB(tenantID string, l *logger.Logger) error {
 	}
 
 	l.Info(context.Background(), "Database connected successfully with tenant isolation", "tenant_id", tenantID)
-
-	// Register signal handler for graceful shutdown
-	// 1. Create the channel
-	errChan := make(chan error)
-
-	go func(ch chan error) {
-		sigChan := make(chan os.Signal, 1)
-		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-		<-sigChan
-		err := DB.Close()
-		if err != nil {
-			l.Error(context.Background(), "Failed to close DB", slog.Any("error", err))
-			ch <- err
-		} else {
-			l.Info(context.Background(), "Received shutdown signal, closing database connection")
-		}
-
-	}(errChan)
-	if err := <-errChan; err != nil {
-		return fmt.Errorf("error during shutdown: %w", err)
-	}
 	return nil
 }
 
@@ -102,7 +78,9 @@ func SetTenantContext(tenantID string, l *logger.Logger) error {
 	if DB != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if _, err := DB.NamedExecContext(ctx, "SET app.current_tenant_id = :tenant_id", map[string]interface{}{"tenant_id": tenantID}); err != nil {
+		// SET does not accept bound parameters; use set_config with $1 instead.
+		var applied string
+		if err := DB.QueryRowContext(ctx, "SELECT set_config('app.current_tenant_id', $1, false)", tenantID).Scan(&applied); err != nil {
 			l.Error(context.Background(), "Failed to set tenant ID session variable", slog.Any("error", err))
 			return err
 		}

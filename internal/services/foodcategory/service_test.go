@@ -10,24 +10,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// MockFoodCategoryRepository is a mock implementation for testing
+// MockFoodCategoryRepository is a mock implementation for testing.
+// Tenant scoping is inherent to the repository instance (mirrors production repos).
 type MockFoodCategoryRepository struct {
+	TenantID   string
 	categories []models.FoodCategory
 }
 
-func (m *MockFoodCategoryRepository) ListByTenant(ctx context.Context, tenantID string) ([]*models.FoodCategory, error) {
+func (m *MockFoodCategoryRepository) ListByTenant(ctx context.Context) ([]*models.FoodCategory, error) {
 	var result []*models.FoodCategory
-	for _, cat := range m.categories {
-		if cat.TenantID == tenantID {
+	for i := range m.categories {
+		cat := m.categories[i]
+		if m.TenantID == "" || cat.TenantID == m.TenantID {
 			result = append(result, &cat)
 		}
 	}
 	return result, nil
 }
 
-func (m *MockFoodCategoryRepository) GetByID(ctx context.Context, tenantID string, id string) (*models.FoodCategory, error) {
-	for _, cat := range m.categories {
-		if cat.ID == id && cat.TenantID == tenantID {
+func (m *MockFoodCategoryRepository) GetByID(ctx context.Context, id string) (*models.FoodCategory, error) {
+	for i := range m.categories {
+		cat := m.categories[i]
+		if cat.ID == id && (m.TenantID == "" || cat.TenantID == m.TenantID) {
 			return &cat, nil
 		}
 	}
@@ -41,7 +45,7 @@ func (m *MockFoodCategoryRepository) Create(ctx context.Context, category *model
 
 func (m *MockFoodCategoryRepository) Update(ctx context.Context, category *models.FoodCategory) (int64, error) {
 	for i, cat := range m.categories {
-		if cat.ID == category.ID && cat.TenantID == category.TenantID {
+		if cat.ID == category.ID && (m.TenantID == "" || cat.TenantID == m.TenantID) {
 			m.categories[i] = *category
 			return 1, nil
 		}
@@ -49,9 +53,9 @@ func (m *MockFoodCategoryRepository) Update(ctx context.Context, category *model
 	return 0, nil
 }
 
-func (m *MockFoodCategoryRepository) Delete(ctx context.Context, tenantID string, id string) (int64, error) {
+func (m *MockFoodCategoryRepository) Delete(ctx context.Context, id string) (int64, error) {
 	for i, cat := range m.categories {
-		if cat.ID == id && cat.TenantID == tenantID {
+		if cat.ID == id && (m.TenantID == "" || cat.TenantID == m.TenantID) {
 			m.categories = append(m.categories[:i], m.categories[i+1:]...)
 			return 1, nil
 		}
@@ -67,7 +71,7 @@ var categories = []models.FoodCategory{
 
 // TestNewFoodCategoryService tests service initialization with dependency injection
 func TestNewFoodCategoryService(t *testing.T) {
-	mockRepo := &MockFoodCategoryRepository{}
+	mockRepo := &MockFoodCategoryRepository{TenantID: "tenant_1"}
 	l := logger.NewLogger()
 
 	service := NewFoodCategoryService(mockRepo, l)
@@ -76,7 +80,7 @@ func TestNewFoodCategoryService(t *testing.T) {
 
 // TestListCategories_Success tests successful retrieval of all food categories
 func TestListCategories_Success(t *testing.T) {
-	mockRepo := &MockFoodCategoryRepository{}
+	mockRepo := &MockFoodCategoryRepository{TenantID: "tenant_1"}
 	mockRepo.categories = []models.FoodCategory{categories[0]}
 	l := logger.NewLogger()
 
@@ -91,7 +95,7 @@ func TestListCategories_Success(t *testing.T) {
 
 // TestListCategories_EmptyResult tests successful retrieval with empty category list
 func TestListCategories_EmptyResult(t *testing.T) {
-	mockRepo := &MockFoodCategoryRepository{}
+	mockRepo := &MockFoodCategoryRepository{TenantID: "tenant_1"}
 	mockRepo.categories = []models.FoodCategory{}
 	l := logger.NewLogger()
 
@@ -104,7 +108,7 @@ func TestListCategories_EmptyResult(t *testing.T) {
 
 // TestGetCategoryByID_Success tests successful retrieval of a single category by ID
 func TestGetCategoryByID_Success(t *testing.T) {
-	mockRepo := &MockFoodCategoryRepository{}
+	mockRepo := &MockFoodCategoryRepository{TenantID: "tenant_1"}
 	mockRepo.categories = []models.FoodCategory{categories[0]}
 	l := logger.NewLogger()
 
@@ -118,7 +122,7 @@ func TestGetCategoryByID_Success(t *testing.T) {
 
 // TestGetCategoryByID_NotFound tests retrieval when category doesn't exist
 func TestGetCategoryByID_NotFound(t *testing.T) {
-	mockRepo := &MockFoodCategoryRepository{}
+	mockRepo := &MockFoodCategoryRepository{TenantID: "tenant_1"}
 	mockRepo.categories = []models.FoodCategory{categories[0]}
 	l := logger.NewLogger()
 

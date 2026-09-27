@@ -27,8 +27,8 @@ func (m *MockFoodItemRepository) Create(ctx context.Context, item *models.FoodIt
 	return args.Error(0)
 }
 
-func (m *MockFoodItemRepository) GetByID(ctx context.Context, tenantID string, id string) (*models.FoodItem, error) {
-	args := m.Called(ctx, tenantID, id)
+func (m *MockFoodItemRepository) GetByID(ctx context.Context, id string) (*models.FoodItem, error) {
+	args := m.Called(ctx, id)
 	// Handle nil case before type assertion
 	result := args.Get(0)
 	if result == nil {
@@ -37,8 +37,8 @@ func (m *MockFoodItemRepository) GetByID(ctx context.Context, tenantID string, i
 	return args.Get(0).(*models.FoodItem), args.Error(1)
 }
 
-func (m *MockFoodItemRepository) Update(ctx context.Context, item *models.FoodItem) error {
-	args := m.Called(ctx, item)
+func (m *MockFoodItemRepository) Update(ctx context.Context, id string, item *models.FoodItem) error {
+	args := m.Called(ctx, id, item)
 	return args.Error(0)
 }
 
@@ -47,8 +47,8 @@ func (m *MockFoodItemRepository) Delete(ctx context.Context, id string) (int64, 
 	return args.Get(0).(int64), args.Error(1)
 }
 
-func (m *MockFoodItemRepository) ListByTenant(ctx context.Context, tenantID string, offset, limit int) ([]*models.FoodItem, int64, error) {
-	args := m.Called(ctx, tenantID, offset, limit)
+func (m *MockFoodItemRepository) ListByTenant(ctx context.Context, offset, limit int) ([]*models.FoodItem, int64, error) {
+	args := m.Called(ctx, offset, limit)
 	return args.Get(0).([]*models.FoodItem), args.Get(1).(int64), args.Error(2)
 }
 
@@ -180,7 +180,7 @@ func TestGetFoodItemByDBCacheHit(t *testing.T) {
 	l := logger.NewLogger()
 
 	currTime := time.Now().UTC().UnixMilli()
-	mockRepo.On("GetByID", mock.Anything, tenantID, "item-123").Return(
+	mockRepo.On("GetByID", mock.Anything, "item-123").Return(
 		&models.FoodItem{
 			ID:                 "item-123",
 			TenantID:           "tenant-1",
@@ -219,7 +219,7 @@ func TestGetFoodItemByDBCacheMiss(t *testing.T) {
 	mockRepo := &MockFoodItemRepository{}
 	l := logger.NewLogger()
 	currTime := time.Now().UTC().UnixMilli()
-	mockRepo.On("GetByID", mock.Anything, tenantID, "item-456").Return(
+	mockRepo.On("GetByID", mock.Anything, "item-456").Return(
 		&models.FoodItem{
 			ID:                 "item-456",
 			TenantID:           "tenant-1",
@@ -256,7 +256,7 @@ func TestGetFoodItem_DBNotFound(t *testing.T) {
 	mockRepo := &MockFoodItemRepository{}
 	l := logger.NewLogger()
 	// Mock returns nil from cache (cache miss), then database returns not found
-	mockRepo.On("GetByID", mock.Anything, tenantID, "nonexistent-item").Return(nil, errors.New("no rows"))
+	mockRepo.On("GetByID", mock.Anything, "nonexistent-item").Return(nil, errors.New("no rows"))
 	categoryService := &MockCategoryService{}
 	categoryService.On("GetCategoryByName", mock.Anything, mock.Anything, mock.Anything).Return(&models.FoodCategory{
 		ID:   "category-1",
@@ -282,7 +282,7 @@ func TestListFoodItems_Success(t *testing.T) {
 	mockRepo := &MockFoodItemRepository{}
 	l := logger.NewLogger()
 	currTime := time.Now().UTC().UnixMilli()
-	mockRepo.On("ListByTenant", mock.Anything, tenantID, 0, 10).Return(
+	mockRepo.On("ListByTenant", mock.Anything, 0, 10).Return(
 		[]*models.FoodItem{
 			{ID: "pizza-1", TenantID: tenantID, Name: "Pizza Margherita", Description: "Classic", CategoryID: "vegetarian", Price: 12.99, IsVegetarian: true, AvailabilityStatus: "available", CreatedAt: currTime, UpdatedAt: currTime},
 			{ID: "pasta-1", TenantID: tenantID, Name: "Spaghetti Carbonara", Description: "Italian classic", CategoryID: "non_vegetarian", Price: 15.99, IsVegetarian: false, AvailabilityStatus: "available", CreatedAt: currTime, UpdatedAt: currTime},
@@ -308,7 +308,7 @@ func TestListFoodItems_Pagination(t *testing.T) {
 	l := logger.NewLogger()
 	currTime := time.Now().UTC().UnixMilli()
 	// Test page 2 with limit 5
-	mockRepo.On("ListByTenant", mock.Anything, tenantID, 5, 5).Return(
+	mockRepo.On("ListByTenant", mock.Anything, 5, 5).Return(
 		[]*models.FoodItem{{ID: "item-3", TenantID: tenantID, Name: "Third Item", CategoryID: "vegan", Price: 8.99, IsVegetarian: true, AvailabilityStatus: "available", CreatedAt: currTime, UpdatedAt: currTime}},
 		int64(10), // total count
 		nil,
@@ -330,7 +330,7 @@ func TestListFoodItems_EmptyResult(t *testing.T) {
 	mockRepo := &MockFoodItemRepository{}
 	l := logger.NewLogger()
 
-	mockRepo.On("ListByTenant", mock.Anything, tenantID, 0, 10).Return(
+	mockRepo.On("ListByTenant", mock.Anything, 0, 10).Return(
 		[]*models.FoodItem{},
 		int64(0), // total count
 		nil,
@@ -358,7 +358,7 @@ func TestUpdateFoodItem_Success(t *testing.T) {
 	l := logger.NewLogger()
 
 	currTime := time.Now().UTC().UnixMilli()
-	mockRepo.On("GetByID", mock.Anything, tenantID, itemID).Return(
+	mockRepo.On("GetByID", mock.Anything, itemID).Return(
 		&models.FoodItem{
 			ID:                 itemID,
 			TenantID:           "tenant-1",
@@ -373,7 +373,7 @@ func TestUpdateFoodItem_Success(t *testing.T) {
 		},
 		nil,
 	)
-	mockRepo.On("Update", mock.Anything, mock.Anything).Return(nil)
+	mockRepo.On("Update", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	categoryService := &MockCategoryService{}
 	categoryService.On("GetCategoryByName", mock.Anything, mock.Anything, mock.Anything).Return(&models.FoodCategory{
@@ -407,7 +407,7 @@ func TestUpdateFoodItem_ValidationFailed(t *testing.T) {
 	l := logger.NewLogger()
 
 	currTime := time.Now().UTC().UnixMilli()
-	mockRepo.On("GetByID", mock.Anything, tenantID, itemID).Return(
+	mockRepo.On("GetByID", mock.Anything, itemID).Return(
 		&models.FoodItem{
 			ID:                 itemID,
 			TenantID:           "tenant-1",
@@ -431,11 +431,11 @@ func TestUpdateFoodItem_ValidationFailed(t *testing.T) {
 
 	svc := NewFoodItemService(mockRepo, l, categoryService)
 
-	// Empty name validation
+	// Negative price is invalid even under partial-update semantics
 	updateReq := &models.FoodItemUpdateRequest{
-		Name:               "", // Invalid - empty
+		Name:               "Valid Name",
 		CategoryName:       "vegan",
-		Price:              10.99,
+		Price:              -5.00,
 		IsVegetarian:       nil,
 		AvailabilityStatus: "available",
 	}
@@ -454,7 +454,7 @@ func TestUpdateFoodItem_ItemNotFound(t *testing.T) {
 
 	mockRepo := &MockFoodItemRepository{}
 	l := logger.NewLogger()
-	mockRepo.On("GetByID", mock.Anything, tenantID, itemID).Return(nil, errors.New("no rows in result set"))
+	mockRepo.On("GetByID", mock.Anything, itemID).Return(nil, errors.New("no rows in result set"))
 
 	categoryService := &MockCategoryService{}
 	categoryService.On("GetCategoryByName", mock.Anything, mock.Anything, mock.Anything).Return(&models.FoodCategory{
@@ -492,7 +492,7 @@ func TestDeleteFoodItem_Success(t *testing.T) {
 	mockRepo := &MockFoodItemRepository{}
 	l := logger.NewLogger()
 	currTime := time.Now().UTC().UnixMilli()
-	mockRepo.On("GetByID", mock.Anything, tenantID, itemID).Return(
+	mockRepo.On("GetByID", mock.Anything, itemID).Return(
 		&models.FoodItem{
 			ID:                 itemID,
 			TenantID:           "tenant-1",
@@ -507,17 +507,17 @@ func TestDeleteFoodItem_Success(t *testing.T) {
 		},
 		nil,
 	)
-	mockRepo.On("Delete", mock.Anything, itemID).Return(int64(1), nil)
+	mockRepo.On("Delete", mock.Anything, mock.Anything).Return(int64(1), nil)
 
 	svc := NewFoodItemService(mockRepo, l, nil)
 
-	rowsAffected, err := svc.Delete(ctx, itemID, tenantID)
+	rowsAffected, err := svc.Delete(ctx, tenantID, itemID)
 
 	assert.NoError(t, err, "Delete should succeed")
 	assert.Equal(t, int64(1), rowsAffected, "Expected one row to be affected")
 }
 
-// TestDeleteFoodItem_NotFound tests 404 error when deleting non-existent item
+// TestDeleteFoodItem_NotFound tests 204 No Content when deleting non-existent item
 func TestDeleteFoodItem_NotFound(t *testing.T) {
 	ctx := t.Context()
 	tenantID := "tenant-1"
@@ -526,14 +526,14 @@ func TestDeleteFoodItem_NotFound(t *testing.T) {
 	mockRepo := &MockFoodItemRepository{}
 	l := logger.NewLogger()
 
-	mockRepo.On("GetByID", mock.Anything, tenantID, itemID).Return(nil, errors.New("no rows in result set"))
+	mockRepo.On("GetByID", mock.Anything, itemID).Return(nil, errors.New("no rows in result set"))
 
 	svc := NewFoodItemService(mockRepo, l, nil)
 
-	rowsAffected, err := svc.Delete(ctx, itemID, tenantID)
+	rowsAffected, err := svc.Delete(ctx, tenantID, itemID)
 
-	assert.Error(t, err, "Delete should fail when item not found")
-	assert.Contains(t, err.Error(), "Failed to verify ", "Error should indicate item not found")
+	// Missing item is treated as 204 No Content (idempotent delete)
+	assert.NoError(t, err, "Delete of missing item should return nil error (204 No Content)")
 	assert.Equal(t, int64(0), rowsAffected, "Expected no rows to be affected")
 }
 
