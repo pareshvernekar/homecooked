@@ -1,0 +1,112 @@
+---
+description: Maintain traceability between OpenSpec requirements, production code, and tests
+alwaysApply: true
+---
+
+# Requirement Traceability
+
+OpenSpec is the source of truth for behavioral requirements.
+
+## Requirement IDs
+
+Every behavioral OpenSpec requirement MUST have a stable alphanumeric ID.
+
+Format:
+
+REQ<DOMAIN><NUMBER>
+
+Examples:
+
+REQORDER001
+REQAUTH001
+REQDDB001
+REQLAMBDA001
+
+Scenario IDs use:
+
+<REQUIREMENT_ID>S<NUMBER>
+
+Examples:
+
+REQORDER001S01
+REQORDER001S02
+
+
+For database-related requirements, traceability may include:
+
+REQ-ID
+  -> OpenSpec requirement
+  -> migration
+  -> Go implementation
+  -> database test
+  
+Rules:
+
+- Requirement IDs must be unique.
+- Requirement IDs are immutable.
+- Never reuse a deleted requirement ID.
+- Never create a second ID for an existing requirement.
+- Do not modify requirement behavior without updating the corresponding OpenSpec requirement.
+- Do not create requirement IDs for formatting, refactoring, or purely internal changes.
+
+## Implementation Traceability
+
+When implementing an OpenSpec requirement:
+
+1. Read the relevant OpenSpec requirement and scenarios.
+2. Preserve the existing requirement ID.
+3. Add the requirement ID to the production code implementing the behavior.
+4. Add the requirement ID to the automated test verifying the behavior.
+5. If multiple code locations implement the same requirement, prefer annotating the smallest meaningful implementation boundary.
+6. If multiple tests verify the same requirement, annotate the relevant tests.
+7. Do not duplicate large explanations in code comments.
+
+Example production code:
+
+// REQORDER001
+func (s *OrderService) CreateOrder(...) {
+    ...
+}
+
+Example test:
+
+func TestCreateOrder_Idempotency(t *testing.T) {
+    // REQORDER001
+    ...
+}
+
+## Scenario Traceability
+
+When useful, reference the scenario ID rather than only the requirement ID.
+
+Example:
+
+// REQORDER001S01
+
+Use scenario IDs when the distinction between scenarios matters.
+
+## Implementation Rules
+
+- Every behavioral requirement must have at least one automated test.
+- Every behavioral requirement implemented by code must be traceable from the OpenSpec requirement to production code.
+- Do not invent behavior that is not supported by the OpenSpec requirement unless required for correctness or compatibility.
+- If the implementation reveals an ambiguity in the requirement, stop and identify the ambiguity rather than silently changing the requirement.
+- Keep requirement comments short.
+- Do not repeat the full requirement text in code.
+
+## Change Review
+
+Before considering an OpenSpec implementation complete, verify:
+
+REQ-ID
+  -> OpenSpec requirement
+  -> production implementation
+  -> automated test
+
+When reviewing a change, report:
+
+- requirements without implementation
+- implementations without requirement IDs
+- requirements without tests
+- tests without requirement IDs
+- mismatched or obsolete requirement IDs

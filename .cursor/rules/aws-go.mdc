@@ -1,0 +1,79 @@
+---
+description: AWS and PostgreSQL development conventions
+alwaysApply: true
+---
+
+# AWS and PostgreSQL Development
+
+## AWS
+
+- Use AWS SDK for Go v2.
+- Propagate context.Context through AWS calls.
+- Lambda handlers should remain thin.
+- Respect Lambda deadlines and cancellation.
+- Do not hardcode AWS resource identifiers.
+- Use configuration/environment variables for environment-specific values.
+- Consider retry behavior and idempotency for externally triggered operations.
+- Consider observability: structured logs, metrics, and traces.
+- Never log credentials, tokens, secrets, or sensitive customer data.
+
+## PostgreSQL
+
+- Use PostgreSQL as the application database.
+- Prefer parameterized queries.
+- Never construct SQL using untrusted string concatenation.
+- Use explicit transactions for operations that must be atomic.
+- Propagate context.Context to database operations.
+- Handle sql.ErrNoRows explicitly where applicable.
+- Use database constraints to enforce invariants that belong at the database layer.
+- Consider indexes when adding or changing query patterns.
+- Avoid SELECT * in application queries unless there is a specific reason.
+- Keep SQL readable and maintainable.
+- Do not silently change database semantics during refactoring.
+
+## Schema Changes
+
+Any schema change MUST include:
+
+1. A migration.
+2. Appropriate application changes.
+3. Tests covering the changed behavior.
+4. Requirement ID traceability when the change is behaviorally significant.
+
+Consider:
+
+- backward compatibility
+- existing data
+- NULL behavior
+- foreign keys
+- unique constraints
+- indexes
+- transaction boundaries
+- migration ordering
+- rollback implications
+
+## PostgreSQL-Specific Behavior
+
+When implementing database behavior, consider:
+
+- transaction isolation
+- locking/concurrency
+- unique constraint violations
+- foreign key violations
+- NULL semantics
+- timestamp/time-zone behavior
+- PostgreSQL-specific types and operators
+- connection pooling
+- query performance
+
+Do not assume database behavior from another database engine.
+
+## Traceability
+
+For behavioral database changes:
+
+REQ-ID
+  -> OpenSpec requirement
+  -> migration/schema change
+  -> Go implementation
+  -> automated test

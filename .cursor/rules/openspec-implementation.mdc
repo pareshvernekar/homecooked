@@ -1,0 +1,53 @@
+--- 
+description: Implement OpenSpec changes without duplicating OpenSpec workflow 
+globs: 
+    - "openspec/**" 
+    - "**/*" 
+alwaysApply: false 
+--- 
+
+# OpenSpec Implementation When implementing an OpenSpec change: 
+    1. Read the applicable change artifacts before modifying code. 
+    2. Treat requirements and scenarios as acceptance criteria. 
+    3. Map each requirement to the production code that implements it. 
+    4. Map each requirement to one or more tests. 
+    5. Implement the smallest change that satisfies the specification. 
+    6. Do not add unspecified behavior unless required to make the implementation safe. 
+    7. Update tests when behavior changes. 
+    8. Update documentation when externally observable behavior changes. 
+    9. Run the relevant tests after implementation. 
+    10. Verify that specification, code, tests, and documentation agree.
+
+
+## Requirement traceability 
+    Use this mental mapping: 
+    Requirement 
+        -> implementation 
+        -> test 
+        -> documentation 
+    If a requirement has no corresponding implementation or test, flag it. 
+    If implementation introduces behavior not represented by the specification, flag it before completing the task. 
+    
+## Do not duplicate artifacts 
+OpenSpec owns: 
+    - proposal 
+    - specification 
+    - design 
+    - tasks 
+Cursor owns: 
+    - code 
+    - tests 
+    - implementation details 
+    - local debugging 
+    - validation 
+
+Do not recreate OpenSpec artifacts unless explicitly requested. 
+
+## Completion 
+Before reporting completion: 
+    - Check all applicable OpenSpec tasks. 
+    - Run relevant Go tests. 
+    - Run `go test ./...` when practical. 
+    - Check for unimplemented requirements. 
+    - Check for tests missing from changed behavior. 
+    - Check documentation consistency.

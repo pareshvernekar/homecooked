@@ -1,0 +1,63 @@
+--- 
+description: Core Go development rules that supplement OpenSpec alwaysApply: true 
+--- 
+# Development Rules
+ This project uses OpenSpec for behavioral specifications. 
+ 
+ ## Source of truth 
+    - OpenSpec specifications define intended externally observable behavior. 
+    - Do not introduce behavioral changes that conflict with an existing spec. 
+    - For a new or changed capability, check `openspec/specs/` before implementing. 
+    - If behavior changes, update the OpenSpec change/spec rather than silently diverging from it. 
+
+## Implementation 
+    - Follow idiomatic Go. 
+    - Prefer simple solutions over unnecessary abstractions. 
+    - Return errors explicitly; do not panic for expected runtime failures. 
+    - Use `context.Context` for cancellation and request-scoped operations. 
+    - Keep functions focused and dependencies explicit. 
+    - Preserve existing public APIs unless the OpenSpec change explicitly requires a breaking change. 
+    - For AWS code, use AWS SDK for Go v2.
+
+## Tests 
+    - Every behavioral code change requires automated tests. 
+    - Add regression tests for bug fixes. 
+    - Prefer table-driven tests where appropriate. 
+    - Mock external dependencies rather than requiring real AWS resources in unit tests. 
+    - Run focused tests first, then `go test ./...`.
+
+## Documentation 
+    - Update documentation when externally observable behavior changes. 
+    - Documentation must agree with the OpenSpec specification and implementation. 
+    - Do not add documentation for behavior that is not implemented.
+
+## Token efficiency 
+    - Read only the files necessary for the current task. 
+    - Do not load the entire repository unless required. 
+    - Do not repeat information already present in OpenSpec artifacts. 
+    - Prefer concise plans and explanations.
+
+## OpenSpec Traceability
+
+For behavioral changes:
+
+- Check the relevant OpenSpec requirements before modifying code.
+- Preserve existing requirement IDs.
+- Propagate requirement IDs into production code and automated tests.
+- Do not invent requirement IDs in Cursor.
+- OpenSpec owns requirement definitions and IDs.
+- Cursor owns implementation and test traceability.
+- Every behavioral change must have corresponding automated tests.
+
+## Database Change Discipline
+
+Do not modify the database schema manually as part of an implementation.
+
+For schema changes:
+
+1. Update the OpenSpec requirement if behavior changes.
+2. Create a migration.
+3. Update the Go application.
+4. Add/update tests.
+5. Verify migration compatibility.
+6. Run the relevant tests.
