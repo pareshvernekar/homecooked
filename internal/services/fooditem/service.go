@@ -231,21 +231,20 @@ func (s *FoodItemService) Update(ctx context.Context, id string, updateReq *mode
 		"food_item_id", id,
 		"food_item_tenant_id", dbItem.TenantID)
 
-	// Build updated food item entity using partial update semantics.
-	// Only fields provided in the request are taken from updateReq; all other fields retain their current values (dbItem).
+	// Partial update: start from persisted values, then overlay request fields.
 	updatedItem := &models.FoodItem{
-		ID:               id, // Keep existing ID
-		TenantID:         tenantID,
-		Name:             updateReq.Name, // Empty string means "don't update this field" - handled below
-		Description:      updateReq.Description, // Empty string means "don't update" - handled below
-		CategoryID:       dbItem.CategoryID, // Keep existing unless categoryName provided
-		Price:            updateReq.Price, // 0 or negative means "don't update" - handled in validation
-		ImageURL:         updateReq.ImageURL, // Empty string means "don't update this field" - handled below
-		Avoidance:        updateReq.Avoidance, // Empty string means "don't update this field" - handled below
-		IsVegetarian:     dbItem.IsVegetarian, // Keep existing unless IsVegetarian provided in request
-		AvailabilityStatus: updateReq.AvailabilityStatus, // Empty string means "don't update" - handled below
-		CreatedAt:        dbItem.CreatedAt, // Never change created_at
-		UpdatedAt:         time.Now().UTC().UnixMilli(), // Always update updated_at
+		ID:                 id,
+		TenantID:           tenantID,
+		Name:               dbItem.Name,
+		Description:        dbItem.Description,
+		CategoryID:         dbItem.CategoryID,
+		Price:              dbItem.Price,
+		ImageURL:           dbItem.ImageURL,
+		Avoidance:          dbItem.Avoidance,
+		IsVegetarian:       dbItem.IsVegetarian,
+		AvailabilityStatus: dbItem.AvailabilityStatus,
+		CreatedAt:          dbItem.CreatedAt,
+		UpdatedAt:          time.Now().UTC().UnixMilli(),
 	}
 
 	// Apply category ID only if categoryName was provided in the request

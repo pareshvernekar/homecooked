@@ -1,5 +1,7 @@
--- Schema for TestContainers Integration Testing
--- Must stay aligned with scripts/init/01_food_catalog.sql and repository SQL.
+-- Canonical local schema for food_category / food_item.
+-- Aligned with internal/repository foodcategory + fooditem SQL
+-- and models (string IDs, unix-millis timestamps, soft-delete via is_active).
+-- Applied by docker compose via /docker-entrypoint-initdb.d on first volume init.
 
 CREATE TABLE IF NOT EXISTS food_category (
     id          VARCHAR(50) PRIMARY KEY,
@@ -11,9 +13,6 @@ CREATE TABLE IF NOT EXISTS food_category (
     updated_at  BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW())) * 1000)::BIGINT,
     CONSTRAINT food_category_tenant_name_unique UNIQUE (tenant_id, name)
 );
-
-CREATE INDEX IF NOT EXISTS idx_food_category_tenant ON food_category(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_food_category_name ON food_category(name);
 
 CREATE TABLE IF NOT EXISTS food_item (
     id                  VARCHAR(50) PRIMARY KEY,
@@ -33,6 +32,8 @@ CREATE TABLE IF NOT EXISTS food_item (
     delivered_at        BIGINT
 );
 
+CREATE INDEX IF NOT EXISTS idx_food_category_tenant ON food_category(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_food_category_name ON food_category(name);
 CREATE INDEX IF NOT EXISTS idx_food_item_tenant ON food_item(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_food_item_category ON food_item(category_id);
 CREATE INDEX IF NOT EXISTS idx_food_item_availability ON food_item(availability_status);

@@ -2,6 +2,11 @@ package server
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net"
+	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -14,8 +19,8 @@ import (
 // Server represents the HTTP server structure
 type Server struct {
 	Router *gin.Engine
-	DB      *sqlx.DB
-	Logger  *logger.Logger
+	DB     *sqlx.DB
+	Logger *logger.Logger
 }
 
 // NewServer creates a new server instance with proper initialization
@@ -25,7 +30,7 @@ func NewServer(db *sqlx.DB, l *logger.Logger) *Server {
 	return &Server{
 		Router: router,
 		DB:     db,
-		Logger:  l,
+		Logger: l,
 	}
 }
 
@@ -33,9 +38,9 @@ func NewServer(db *sqlx.DB, l *logger.Logger) *Server {
 func setupGinEngine(l *logger.Logger) *gin.Engine {
 	router := gin.New()
 
-	// Setup middleware
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
+	router.Use(middleware.TenantMiddleware(l))
 
 	return router
 }
@@ -43,39 +48,62 @@ func setupGinEngine(l *logger.Logger) *gin.Engine {
 // SetupRoutes configures all HTTP routes for the server
 func SetupRoutes(
 	router *gin.Engine,
-	db *sqlx.DB,
-	l *logger.Logger,
-	handler *handlers.FoodItemHandler,
+	_ *sqlx.DB,
+	_ *logger.Logger,
+	foodCategoryHandler *handlers.FoodCategoryHandler,
+	foodItemHandler *handlers.FoodItemHandler,
 ) {
-	// Food categories API
 	v1 := router.Group("/api/v1")
-
-	var foodCategoryHandler = handlers.NewFoodCategoryHandler(nil, l)
 
 	v1.GET("/categories", foodCategoryHandler.ListCategories)
 	v1.POST("/categories", foodCategoryHandler.CreateCategory)
 	v1.PUT("/categories/:id", foodCategoryHandler.UpdateCategory)
 	v1.DELETE("/categories/:id", foodCategoryHandler.DeleteCategory)
 
-	// Food items API
-	v1.GET("/food-items", handler.GetFoodItems)
-	v1.POST("/food-items", handler.CreateFoodItem)
-	v1.PUT("/food-items/:id", handler.UpdateFoodItem)
-	v1.DELETE("/food-items/:id", handler.DeleteFoodItem)
-
-	// Initialize tenant ID in context (for middleware that needs it)
-	router.Use(func(c *gin.Context) {
-		c.Set(middleware.TenantIDKey, "default")
-		c.Next()
-	})
+	v1.GET("/food-items", foodItemHandler.GetFoodItems)
+	v1.POST("/food-items", foodItemHandler.CreateFoodItem)
+	v1.PUT("/food-items/:id", foodItemHandler.UpdateFoodItem)
+	v1.DELETE("/food-items/:id", foodItemHandler.DeleteFoodItem)
 }
 
-// Run starts the HTTP server
+// Run starts the HTTP server and blocks until ctx is cancelled or Listen fails.
 func (s *Server) Run(ctx context.Context) error {
-	port := ":8080"
+	addr := ":8080"
 
-	addr := port
-	s.Logger.Info(ctx, "Starting server", "address", addr)
+	httpServer := &http.Server{
+		Addr:              addr,
+		Handler:           s.Router,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
 
-	return s.Router.Run(addr)
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("listen on %s: %w", addr, err)
+	}
+
+	s.Logger.Info(ctx, "HTTP server listening", "address", addr)
+	fmt.Printf("HTTP server listening on http://localhost%s\n", addr)
+
+	errCh := make(chan error, 1)
+	go func() {
+		err := httpServer.Serve(ln)
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- err
+			return
+		}
+		errCh <- nil
+	}()
+
+	select {
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		s.Logger.Info(ctx, "Shutting down HTTP server")
+		if err := httpServer.Shutdown(shutdownCtx); err != nil {
+			return fmt.Errorf("http shutdown: %w", err)
+		}
+		return <-errCh
+	case err := <-errCh:
+		return err
+	}
 }

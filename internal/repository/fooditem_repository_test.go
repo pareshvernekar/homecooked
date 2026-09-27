@@ -234,9 +234,9 @@ func TestPostgreSQLFoodItemRepository_GetByID_Success(t *testing.T) {
 
 	// Mock successful query result - DB.Select types slice as []T (values, not pointers) based on T parameter
 	currentTime := time.Now().UnixMilli()
-	rows := sqlmock.NewRows([]string{"id", "tenant_id", "name", "description", "price", "category_id", "created_at", "updated_at"}).
-		AddRow("item-uuid-123", "tenant-123", "Pizza", "Delicious pizza with cheese", 9.99, "cat-uuid-1", currentTime, currentTime)
-	queryRegex := regexp.QuoteMeta(`SELECT id, tenant_id, name, COALESCE(description, '') as description, COALESCE(price, 0) as price, category_id, created_at, updated_at FROM food_item WHERE tenant_id = $1 AND id = $2`)
+	rows := sqlmock.NewRows([]string{"id", "tenant_id", "name", "description", "price", "category_id", "image_url", "avoidance", "is_vegetarian", "availability_status", "created_at", "updated_at"}).
+		AddRow("item-uuid-123", "tenant-123", "Pizza", "Delicious pizza with cheese", 9.99, "cat-uuid-1", "", "", false, "available", currentTime, currentTime)
+	queryRegex := regexp.QuoteMeta(`SELECT id, tenant_id, name, COALESCE(description, '') as description, COALESCE(price, 0) as price, category_id, COALESCE(image_url, '') as image_url, COALESCE(avoidance, '') as avoidance, COALESCE(is_vegetarian, false) as is_vegetarian, COALESCE(availability_status, 'available') as availability_status, created_at, updated_at FROM food_item WHERE tenant_id = $1 AND id = $2`)
 	mock.ExpectQuery(queryRegex).WithArgs("tenant-123", "item-uuid-123").WillReturnRows(rows)
 	mock.ExpectClose()
 	repo := &PostgreSQLFoodItemRepository{
@@ -292,7 +292,7 @@ func TestPostgreSQLFoodItemRepository_GetByID_ErrorMessageOnFailure(t *testing.T
 	dbx := sqlx.NewDb(db, "sqlmock")
 
 	// Mock query fails due to connection error
-	queryRegex := regexp.QuoteMeta(`SELECT id, tenant_id, name, COALESCE(description, '') as description, COALESCE(price, 0) as price, category_id, created_at, updated_at FROM food_item WHERE tenant_id = $1 AND id = $2`)
+	queryRegex := regexp.QuoteMeta(`SELECT id, tenant_id, name, COALESCE(description, '') as description, COALESCE(price, 0) as price, category_id, COALESCE(image_url, '') as image_url, COALESCE(avoidance, '') as avoidance, COALESCE(is_vegetarian, false) as is_vegetarian, COALESCE(availability_status, 'available') as availability_status, created_at, updated_at FROM food_item WHERE tenant_id = $1 AND id = $2`)
 	mock.ExpectQuery(queryRegex).WithArgs("tenant-999", "item-uuid-xyz").WillReturnError(fmt.Errorf("database connection error"))
 	mock.ExpectClose()
 	repo := &PostgreSQLFoodItemRepository{
@@ -445,8 +445,8 @@ func TestPostgreSQLFoodItemRepository_Update_Success(t *testing.T) {
 
 	// Mock successful UPDATE - Exec returns single value (not slice)
 	currentTime := time.Now().UTC().UnixMilli()
-	queryRegex := regexp.QuoteMeta(`UPDATE food_item SET name = $1, description = $2, price = $3, category_id = $4, updated_at = $5 WHERE id = $6 AND tenant_id = $7`)
-	mock.ExpectExec(queryRegex).WithArgs("Updated Burger Name", "Updated description", 12.99, "cat-uuid-1", sqlmock.AnyArg(), "item-uuid-123", "tenant-123").WillReturnResult(sqlmock.NewResult(10, 1))
+	queryRegex := regexp.QuoteMeta(`UPDATE food_item SET name = $1, description = $2, price = $3, category_id = $4, image_url = $5, avoidance = $6, is_vegetarian = $7, availability_status = $8, updated_at = $9 WHERE id = $10 AND tenant_id = $11`)
+	mock.ExpectExec(queryRegex).WithArgs("Updated Burger Name", "Updated description", 12.99, "cat-uuid-1", sqlmock.AnyArg(), sqlmock.AnyArg(), false, "available", sqlmock.AnyArg(), "item-uuid-123", "tenant-123").WillReturnResult(sqlmock.NewResult(10, 1))
 	mock.ExpectClose()
 	repo := &PostgreSQLFoodItemRepository{
 		DB:       dbx,
@@ -486,8 +486,8 @@ func TestPostgreSQLFoodItemRepository_Update_FailNotExists(t *testing.T) {
 	dbx := sqlx.NewDb(db, "sqlmock")
 
 	// Mock UPDATE affects 0 rows because ID doesn't exist
-	queryRegex := regexp.QuoteMeta(`UPDATE food_item SET name = $1, description = $2, price = $3, category_id = $4, updated_at = $5 WHERE id = $6 AND tenant_id = $7`)
-	mock.ExpectExec(queryRegex).WithArgs("New Name", "New Description", 10.99, "cat-uuid-1", sqlmock.AnyArg(), "item-nonexistent", "tenant-123").WillReturnResult(sqlmock.NewResult(0, 0))
+	queryRegex := regexp.QuoteMeta(`UPDATE food_item SET name = $1, description = $2, price = $3, category_id = $4, image_url = $5, avoidance = $6, is_vegetarian = $7, availability_status = $8, updated_at = $9 WHERE id = $10 AND tenant_id = $11`)
+	mock.ExpectExec(queryRegex).WithArgs("New Name", "New Description", 10.99, "cat-uuid-1", sqlmock.AnyArg(), sqlmock.AnyArg(), false, "available", sqlmock.AnyArg(), "item-nonexistent", "tenant-123").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectClose()
 	repo := &PostgreSQLFoodItemRepository{
 		DB:       dbx,
@@ -528,8 +528,8 @@ func TestPostgreSQLFoodItemRepository_Update_FailDatabaseError(t *testing.T) {
 
 	// Mock UPDATE fails due to database error
 	updatedAt := time.Now().UTC().UnixMilli()
-	queryRegex := regexp.QuoteMeta(`UPDATE food_item SET name = $1, description = $2, price = $3, category_id = $4, updated_at = $5 WHERE id = $6 AND tenant_id = $7`)
-	mock.ExpectExec(queryRegex).WithArgs("New Name", "New Description", 10.99, "cat-uuid-1", sqlmock.AnyArg(), "item-uuid-xyz", "tenant-123").WillReturnError(fmt.Errorf("database error: constraint violation"))
+	queryRegex := regexp.QuoteMeta(`UPDATE food_item SET name = $1, description = $2, price = $3, category_id = $4, image_url = $5, avoidance = $6, is_vegetarian = $7, availability_status = $8, updated_at = $9 WHERE id = $10 AND tenant_id = $11`)
+	mock.ExpectExec(queryRegex).WithArgs("New Name", "New Description", 10.99, "cat-uuid-1", sqlmock.AnyArg(), sqlmock.AnyArg(), false, "available", sqlmock.AnyArg(), "item-uuid-xyz", "tenant-123").WillReturnError(fmt.Errorf("database error: constraint violation"))
 	mock.ExpectClose()
 	repo := &PostgreSQLFoodItemRepository{
 		DB:       dbx,

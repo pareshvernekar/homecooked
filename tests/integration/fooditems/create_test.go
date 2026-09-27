@@ -1,103 +1,75 @@
 package fooditems
 
 import (
-	"bytes"
-	"encoding/json"
 	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 
-	"github.com/pareshvernekar/homecooked/internal/handlers"
-	logger "github.com/pareshvernekar/homecooked/internal/logger"
-	models "github.com/pareshvernekar/homecooked/internal/models"
-	"github.com/pareshvernekar/homecooked/internal/repository"
-	"github.com/pareshvernekar/homecooked/internal/services/foodcategory"
-	"github.com/pareshvernekar/homecooked/internal/services/fooditem"
-	"github.com/pareshvernekar/homecooked/internal/views"
-	testdb "github.com/pareshvernekar/homecooked/tests/db"
-	testhttp "github.com/pareshvernekar/homecooked/tests/http"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// CreateFoodItemTest tests the Food Item creation API endpoint
+
 func TestCreateFoodItem(t *testing.T) {
-	db, err := testdb.NewDatabaseHelper(t.Context())
-	if err != nil {
-		t.Fatalf("Failed to create PostgreSQL connection: %v", err)
-	}
+	env := setupIntegrationEnv(t)
 
-	defer func() {
-		err := db.Terminate(t.Context())
-		require.NoError(t, err, "Failed to terminate database connection")
-	}()
-
-	// Initialize database schema
-	err = testdb.InitializeSchema(t.Context(), db.DB)
-	if err != nil {
-		t.Fatalf("Failed to initialize schema: %v", err)
-	}
-
-	// Create test tenant
-	testTenant, err := testdb.CreateTestTenant(t.Context(), db.DB)
-	if err != nil {
-		t.Fatalf("Failed to create test tenant: %v", err)
-	}
-	defer func() { _ = testTenant.Cleanup() }()
-
-	// Test case 1: Valid food item creation request with valid category name
-	body := map[string]interface{}{
+	ctx, resp := doJSONRequest(t, http.MethodPost, "/api/v1/food-items", map[string]interface{}{
 		"name":                "Chicken Biryani",
 		"description":         "Rich and flavorful biryani with aromatic spices",
 		"price":               249.99,
 		"category_name":       "vegetarian",
 		"availability_status": "available",
-	}
+		"is_vegetarian":       true,
+	}, nil)
+	env.Handler.CreateFoodItem(ctx)
 
-	var bodyBytes bytes.Buffer
-	if err := json.NewEncoder(&bodyBytes).Encode(body); err != nil {
-		t.Fatal("Failed to encode JSON body")
-	}
+	require.Equal(t, http.StatusCreated, resp.Code, "body: %s", resp.Body.String())
+	response := decodeSuccess(t, resp)
+	require.True(t, response.Success)
+	assert.Equal(t, "Food item created successfully", response.Message)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/food-items", strings.NewReader(bodyBytes.String()))
-	req.Header.Set("X-Tenant-ID", "test-tenant")
+	obj := asObject(t, response.Data)
+	id, ok := obj["id"].(string)
+	require.True(t, ok)
+	require.NotEmpty(t, id, "created food item must have a generated ID")
+	assert.Equal(t, "Chicken Biryani", obj["name"])
+	assert.Equal(t, 249.99, obj["price"])
+	assert.Equal(t, testTenantID, obj["tenant_id"])
+	assert.Equal(t, "available", obj["availability_status"])
+	assert.NotEmpty(t, obj["category_id"])
 
-	ctx, resp := testhttp.CreateTestContext(req)
+	var dbName string
+	var dbPrice float64
+	err := env.DBConn.QueryRow(
+		`SELECT name, price FROM food_item WHERE id = $1 AND tenant_id = $2`, id, testTenantID,
+	).Scan(&dbName, &dbPrice)
+	require.NoError(t, err)
+	assert.Equal(t, "Chicken Biryani", dbName)
+	assert.Equal(t, 249.99, dbPrice)
+}
 
-	logger := logger.NewLogger()
-	foodCategoryRepository := repository.NewFoodCategoryRepository(db.DB, logger, "test-tenant")
-	foodCategoryService := foodcategory.NewFoodCategoryService(foodCategoryRepository, logger)
-	foodItemRepository := repository.NewFoodItemRepository(db.DB, logger, "test-tenant")
-	foodItemService := fooditem.NewFoodItemService(foodItemRepository, logger, foodCategoryService)
+func TestCreateFoodItem_UnknownCategory(t *testing.T) {
+	env := setupIntegrationEnv(t)
 
-	handler := handlers.NewFoodItemHandler(foodItemService, logger)
-	handler.CreateFoodItem(ctx)
+	// "vegan" is a valid category enum but is not seeded for this tenant.
+	ctx, resp := doJSONRequest(t, http.MethodPost, "/api/v1/food-items", map[string]interface{}{
+		"name":                "Mystery Dish",
+		"description":         "Category missing from tenant catalog",
+		"price":               10.0,
+		"category_name":       "vegan",
+		"availability_status": "available",
+	}, nil)
+	env.Handler.CreateFoodItem(ctx)
 
-	if resp.Code != http.StatusCreated {
-		t.Errorf("Expected status 201 but got %d. Body: %s", resp.Code, resp.Body.String())
-	}
+	require.Equal(t, http.StatusInternalServerError, resp.Code, "body: %s", resp.Body.String())
+}
 
-	// Parse response
-	var response views.SuccessResponse
-	if err := json.Unmarshal(resp.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response")
-	}
+func TestCreateFoodItem_ValidationError(t *testing.T) {
+	env := setupIntegrationEnv(t)
 
-	if !response.Success {
-		t.Errorf("Response should be successful")
-	}
+	ctx, resp := doJSONRequest(t, http.MethodPost, "/api/v1/food-items", map[string]interface{}{
+		"description": "missing required fields",
+	}, nil)
+	env.Handler.CreateFoodItem(ctx)
 
-	data := resp.Body.Bytes()
-
-	t.Logf("Create test passed - Created food item successfully. Response body: %s", string(data))
-
-	// Verify database state - insert into the category table
-	var category models.FoodCategory
-	query := `SELECT id, tenant_id, name, COALESCE(description, '') as description, is_active, created_at, updated_at FROM food_category WHERE id = $1`
-	err = db.DB.Get(&category, query, testTenant.ID)
-	if err != nil {
-		t.Fatalf("Failed to verify database state: %v", err)
-	}
-
-	t.Logf("Database state - Food category ID: %s, Name: %s", testTenant.ID, category.Name)
+	require.Equal(t, http.StatusBadRequest, resp.Code, "body: %s", resp.Body.String())
 }

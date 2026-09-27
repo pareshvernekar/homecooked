@@ -2,100 +2,39 @@ package fooditems
 
 import (
 	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/pareshvernekar/homecooked/internal/handlers"
-	logger "github.com/pareshvernekar/homecooked/internal/logger"
-	"github.com/pareshvernekar/homecooked/internal/repository"
-	"github.com/pareshvernekar/homecooked/internal/services/foodcategory"
-	"github.com/pareshvernekar/homecooked/internal/services/fooditem"
-	testdb "github.com/pareshvernekar/homecooked/tests/db"
-	testhttp "github.com/pareshvernekar/homecooked/tests/http"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// DeleteFoodItemTest tests the Food Item deletion API endpoint
+
 func TestDeleteFoodItem(t *testing.T) {
-	db, err := testdb.NewDatabaseHelper(t.Context())
-	if err != nil {
-		t.Fatalf("Failed to create database connection: %v", err)
-	}
+	env := setupIntegrationEnv(t)
+	id := createFoodItemViaAPI(t, env, "Chicken Biryani", 249.99)
 
-	defer func() {
-		err := db.Terminate(t.Context())
-		require.NoError(t, err, "Failed to terminate database connection")
-	}()
+	ctx, resp := doJSONRequest(t, http.MethodDelete, "/api/v1/food-items/"+id, nil, gin.Params{
+		{Key: "id", Value: id},
+	})
+	env.Handler.DeleteFoodItem(ctx)
 
-	err = InitializeSchema(t.Context(), db.DB)
-	require.NoError(t, err, "Failed to initialize schema")
+	require.Equal(t, http.StatusNoContent, resp.Code, "body: %s", resp.Body.String())
 
-	categoryID, _ := SetupFoodCategory(t.Context(), db.DB)
-
-	itemID, err := InsertFoodItem(t.Context(), db.DB, "Chicken Biryani", "Rich biryani", 249.99, categoryID, "test-tenant")
-	if err != nil {
-		t.Fatalf("Failed to insert item: %v", err)
-	}
-
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/food-items/"+itemID, strings.NewReader(""))
-
-	ctx, resp := testhttp.CreateTestContext(req)
-	ctx.Params = gin.Params{
-		{Key: "id", Value: itemID},
-	}
-	logger := logger.NewLogger()
-	foodCategoryRepository := repository.NewFoodCategoryRepository(db.DB, logger, "test-tenant")
-	foodCategoryService := foodcategory.NewFoodCategoryService(foodCategoryRepository, logger)
-	foodItemRepository := repository.NewFoodItemRepository(db.DB, logger, "test-tenant")
-	foodItemService := fooditem.NewFoodItemService(foodItemRepository, logger, foodCategoryService)
-	handler := handlers.NewFoodItemHandler(foodItemService, logger)
-	handler.DeleteFoodItem(ctx)
-
-	if resp.Code != http.StatusNoContent {
-		t.Errorf("Expected status 204 but got %d. Body: %s", resp.Code, resp.Body.String())
-	}
-
-	// For 204 No Content, we expect empty body - no JSON parsing needed
-	t.Logf("✓ Delete test passed - Item deleted successfully (returned 204 No Content)")
+	var isActive bool
+	err := env.DBConn.Get(&isActive, `SELECT is_active FROM food_item WHERE id = $1 AND tenant_id = $2`, id, testTenantID)
+	require.NoError(t, err)
+	assert.False(t, isActive, "delete should soft-delete by setting is_active=false")
 }
 
-// TestDeleteNonExistentFoodItem tests deletion of non-existent food item
-func TestDeleteNonExistentFoodItem(t *testing.T) {
-	db, err := testdb.NewDatabaseHelper(t.Context())
-	if err != nil {
-		t.Fatalf("Failed to create database connection: %v", err)
-	}
+func TestDeleteFoodItem_NotFound(t *testing.T) {
+	env := setupIntegrationEnv(t)
 
-	defer func() {
-		err := db.Terminate(t.Context())
-		require.NoError(t, err, "Failed to terminate database connection")
-	}()
-
-	err = InitializeSchema(t.Context(), db.DB)
-	require.NoError(t, err, "Failed to initialize schema")
-
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/food-items/non-existent-id", strings.NewReader(""))
-
-	ctx, resp := testhttp.CreateTestContext(req)
-	ctx.Params = gin.Params{
+	ctx, resp := doJSONRequest(t, http.MethodDelete, "/api/v1/food-items/non-existent-id", nil, gin.Params{
 		{Key: "id", Value: "non-existent-id"},
-	}
-	logger := logger.NewLogger()
-	foodCategoryRepository := repository.NewFoodCategoryRepository(db.DB, logger, "test-tenant")
-	foodCategoryService := foodcategory.NewFoodCategoryService(foodCategoryRepository, logger)
-	foodItemRepository := repository.NewFoodItemRepository(db.DB, logger, "test-tenant")
-	foodItemService := fooditem.NewFoodItemService(foodItemRepository, logger, foodCategoryService)
-	handler := handlers.NewFoodItemHandler(foodItemService, logger)
-	handler.DeleteFoodItem(ctx)
+	})
+	env.Handler.DeleteFoodItem(ctx)
 
-	// Per user requirement: when deleting non-existent item, return 204 No Content (not 404)
-	// This is acceptable behavior since the item doesn't exist for this tenant
-	if resp.Code != http.StatusNoContent {
-		t.Errorf("Expected status 204 No Content but got %d. Body: %s", resp.Code, resp.Body.String())
-	}
-
-	// For 204 No Content, we expect empty body - no JSON parsing needed
-	t.Logf("✓ Non-existent delete test passed - 204 No Content returned as per requirement (item doesn't exist)")
+	// Idempotent delete: missing item still returns 204
+	require.Equal(t, http.StatusNoContent, resp.Code, "body: %s", resp.Body.String())
 }

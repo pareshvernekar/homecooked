@@ -1,4 +1,4 @@
-package fooditems
+package foodcategories
 
 import (
 	"encoding/json"
@@ -13,7 +13,6 @@ import (
 	"github.com/pareshvernekar/homecooked/internal/logger"
 	"github.com/pareshvernekar/homecooked/internal/repository"
 	"github.com/pareshvernekar/homecooked/internal/services/foodcategory"
-	"github.com/pareshvernekar/homecooked/internal/services/fooditem"
 	"github.com/pareshvernekar/homecooked/internal/views"
 	testdb "github.com/pareshvernekar/homecooked/tests/db"
 	testhttp "github.com/pareshvernekar/homecooked/tests/http"
@@ -24,7 +23,7 @@ const testTenantID = "test-tenant"
 
 type integrationEnv struct {
 	DB      *testdb.DatabaseHelper
-	Handler *handlers.FoodItemHandler
+	Handler *handlers.FoodCategoryHandler
 	DBConn  *sqlx.DB
 }
 
@@ -33,6 +32,7 @@ func setupIntegrationEnv(t *testing.T) *integrationEnv {
 
 	db, err := testdb.NewDatabaseHelper(t.Context())
 	require.NoError(t, err, "failed to create PostgreSQL connection")
+
 	t.Cleanup(func() {
 		require.NoError(t, db.Terminate(t.Context()))
 	})
@@ -40,17 +40,15 @@ func setupIntegrationEnv(t *testing.T) *integrationEnv {
 	require.NoError(t, testdb.InitializeSchema(t.Context(), db.DB))
 
 	testTenant, err := testdb.CreateTestTenant(t.Context(), db.DB)
-	require.NoError(t, err, "failed to create test tenant / seed vegetarian category")
+	require.NoError(t, err, "failed to create test tenant")
 	t.Cleanup(func() {
 		_ = testTenant.Cleanup()
 	})
 
 	l := logger.NewLogger()
-	categoryRepo := repository.NewFoodCategoryRepository(db.DB, l, testTenantID)
-	categoryService := foodcategory.NewFoodCategoryService(categoryRepo, l)
-	itemRepo := repository.NewFoodItemRepository(db.DB, l, testTenantID)
-	itemService := fooditem.NewFoodItemService(itemRepo, l, categoryService)
-	handler := handlers.NewFoodItemHandler(itemService, l)
+	repo := repository.NewFoodCategoryRepository(db.DB, l, testTenantID)
+	service := foodcategory.NewFoodCategoryService(repo, l)
+	handler := handlers.NewFoodCategoryHandler(service, l)
 
 	return &integrationEnv{DB: db, Handler: handler, DBConn: db.DB}
 }
@@ -99,20 +97,18 @@ func asArray(t *testing.T, data interface{}) []interface{} {
 	return arr
 }
 
-func createFoodItemViaAPI(t *testing.T, env *integrationEnv, name string, price float64) string {
+func createCategoryViaAPI(t *testing.T, env *integrationEnv, name, description string) string {
 	t.Helper()
 
-	ctx, resp := doJSONRequest(t, http.MethodPost, "/api/v1/food-items", map[string]interface{}{
-		"name":                name,
-		"description":         name + " description",
-		"price":               price,
-		"category_name":       "vegetarian",
-		"availability_status": "available",
+	ctx, resp := doJSONRequest(t, http.MethodPost, "/api/v1/categories", map[string]interface{}{
+		"name":        name,
+		"description": description,
 	}, nil)
-	env.Handler.CreateFoodItem(ctx)
+	env.Handler.CreateCategory(ctx)
 	require.Equal(t, http.StatusCreated, resp.Code, "body: %s", resp.Body.String())
 
 	response := decodeSuccess(t, resp)
+	require.True(t, response.Success)
 	obj := asObject(t, response.Data)
 	id, ok := obj["id"].(string)
 	require.True(t, ok)

@@ -1,110 +1,49 @@
 package foodcategories
 
 import (
-	"bytes"
-	"encoding/json"
 	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 
-	"github.com/jmoiron/sqlx"
-	"github.com/pareshvernekar/homecooked/internal/handlers"
-	"github.com/pareshvernekar/homecooked/internal/logger"
-	"github.com/pareshvernekar/homecooked/internal/repository"
-	"github.com/pareshvernekar/homecooked/internal/services/foodcategory"
-	"github.com/pareshvernekar/homecooked/internal/views"
-	testdb "github.com/pareshvernekar/homecooked/tests/db"
-	testhttp "github.com/pareshvernekar/homecooked/tests/http"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// TestCreateFoodCategory tests the Food Category creation API endpoint
+
 func TestCreateFoodCategory(t *testing.T) {
-	db, err := testdb.NewDatabaseHelper(t.Context())
-	if err != nil {
-		t.Fatalf("Failed to create PostgreSQL connection: %v", err)
-	}
+	env := setupIntegrationEnv(t)
 
-	defer func() {
-		err := db.Terminate(t.Context())
-		require.NoError(t, err, "Failed to terminate database connection")
-	}()
-	// Initialize database schema
-	err = testdb.InitializeSchema(t.Context(), db.DB)
-	if err != nil {
-		t.Fatalf("Failed to initialize schema: %v", err)
-	}
+	ctx, resp := doJSONRequest(t, http.MethodPost, "/api/v1/categories", map[string]interface{}{
+		"name":        "desserts",
+		"description": "Sweet treats",
+	}, nil)
+	env.Handler.CreateCategory(ctx)
 
-	// Create test tenant
-	testTenant, err := testdb.CreateTestTenant(t.Context(), db.DB)
-	if err != nil {
-		t.Fatalf("Failed to create test tenant: %v", err)
-	}
-	defer func() {
-		err := testTenant.Cleanup()
-		require.NoError(t, err, "Failed to cleanup test tenant")
-	}()
+	require.Equal(t, http.StatusCreated, resp.Code, "body: %s", resp.Body.String())
+	response := decodeSuccess(t, resp)
+	require.True(t, response.Success)
+	assert.Equal(t, "Food category created successfully", response.Message)
 
-	// Test case 1: Valid food category creation request
-	body := map[string]interface{}{
-		"name":        "test-vegetarian",
-		"description": "Vegetarian meals",
-		"tenant_id":   testTenant.ID,
-	}
+	obj := asObject(t, response.Data)
+	assert.NotEmpty(t, obj["id"])
+	assert.Equal(t, "desserts", obj["name"])
+	assert.Equal(t, "Sweet treats", obj["description"])
+	assert.Equal(t, testTenantID, obj["tenant_id"])
+	assert.Equal(t, true, obj["is_active"])
 
-	var bodyBytes bytes.Buffer
-	err = json.NewEncoder(&bodyBytes).Encode(body)
-	if err != nil {
-		t.Fatalf("Failed to encode request body: %v", err)
-	}
-
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/food-categories", strings.NewReader(bodyBytes.String()))
-	req.Header.Set("X-Tenant-ID", "test-tenant")
-	// Create handler with test dependencies
-	logger := logger.NewLogger()
-	foodCategoryRepository := repository.NewFoodCategoryRepository(db.DB, logger, "test-tenant")
-	foodCategoryService := foodcategory.NewFoodCategoryService(foodCategoryRepository, logger)
-
-	handler := handlers.NewFoodCategoryHandler(foodCategoryService, logger)
-
-	ctx, resp := testhttp.CreateTestContext(req)
-
-	handler.CreateCategory(ctx)
-
-	if resp.Code != http.StatusCreated {
-		t.Errorf("Expected status 201 but got %d. Body: %s", resp.Code, resp.Body.String())
-	}
-
-	// Parse response
-	var response views.SuccessResponse
-	err = json.Unmarshal(resp.Body.Bytes(), &response)
-	if err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
-	}
-
-	if !response.Success {
-		t.Errorf("Response should be successful")
-	}
-
-	data := response.Data
-	categoryID := data.(map[string]interface{})["ID"].(string)
-	require.NotEmpty(t, categoryID, "Category ID should not be empty")
-	// Verify database state
-	err = VerifyDatabaseState(t, db.DB)
-	require.NoError(t, err, "Failed to verify database state")
+	var count int
+	err := env.DBConn.Get(&count, `SELECT COUNT(*) FROM food_category WHERE name = $1 AND tenant_id = $2`, "desserts", testTenantID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
 }
 
-// VerifyDatabaseState verifies the database state after an operation
-func VerifyDatabaseState(t *testing.T, db *sqlx.DB) error {
-	count := 0
-	query := `SELECT COUNT(*) FROM food_category`
-	err := db.Get(&count, query)
-	if err != nil {
-		return err
-	}
+func TestCreateFoodCategory_BlankName(t *testing.T) {
+	env := setupIntegrationEnv(t)
 
-	t.Logf("Database state - Food categories count: %d", count)
+	ctx, resp := doJSONRequest(t, http.MethodPost, "/api/v1/categories", map[string]interface{}{
+		"name":        "",
+		"description": "missing name",
+	}, nil)
+	env.Handler.CreateCategory(ctx)
 
-	return nil
+	require.Equal(t, http.StatusBadRequest, resp.Code, "body: %s", resp.Body.String())
 }

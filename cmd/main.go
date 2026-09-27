@@ -56,15 +56,13 @@ func main() {
 	foodCategoryService := foodcategoryService.NewFoodCategoryService(foodCategoryRepo, loggerInstance)
 	foodItemService := fooditemService.NewFoodItemService(foodItemRepo, loggerInstance, foodCategoryService)
 
-	// =============================================================================
-	// Create handlers and server with proper cache injection
-	// =============================================================================
+	foodCategoryHandler := handlers.NewFoodCategoryHandler(foodCategoryService, loggerInstance)
 	foodItemHandler := handlers.NewFoodItemHandler(foodItemService, loggerInstance)
 
 	srv := server.NewServer(db, loggerInstance)
 	router := srv.Router
 	gin.SetMode(gin.ReleaseMode)
-	server.SetupRoutes(router, db, loggerInstance, foodItemHandler)
+	server.SetupRoutes(router, db, loggerInstance, foodCategoryHandler, foodItemHandler)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -72,9 +70,9 @@ func main() {
 	go func() {
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-			<-sigChan
-			fmt.Println("Received shutdown signal...")
-			cancel()
+		<-sigChan
+		fmt.Println("Received shutdown signal...")
+		cancel()
 	}()
 
 	if err := srv.Run(ctx); err != nil {
@@ -82,6 +80,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println("Service running successfully")
-	select {}
+	if err := database.Close(loggerInstance); err != nil {
+		fmt.Printf("Error closing database: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println("Server stopped cleanly")
 }

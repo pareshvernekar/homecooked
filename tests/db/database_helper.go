@@ -62,21 +62,24 @@ func CreatePostgresConnection(ctx context.Context) (*sqlx.DB, func() error, erro
 	return db.DB, cleanup, nil
 }
 
-// InitializeSchema initializes the test database schema
+// InitializeSchema initializes the test database schema.
+// Keep in sync with scripts/init/01_food_catalog.sql.
 func InitializeSchema(ctx context.Context, db *sqlx.DB) error {
 	schemaSQL := `
 	CREATE TABLE IF NOT EXISTS food_category (
 	    id VARCHAR(50) PRIMARY KEY,
-	    name VARCHAR(100) NOT NULL UNIQUE,
-	    description TEXT,
 	    tenant_id VARCHAR(50) NOT NULL,
-		is_active BOOLEAN DEFAULT TRUE,
-	    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT,
-	    updated_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT
+	    name VARCHAR(100) NOT NULL,
+	    description TEXT,
+	    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+	    created_at BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW())) * 1000)::BIGINT,
+	    updated_at BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW())) * 1000)::BIGINT,
+	    CONSTRAINT food_category_tenant_name_unique UNIQUE (tenant_id, name)
 	);
 
 	CREATE TABLE IF NOT EXISTS food_item (
 	    id VARCHAR(50) PRIMARY KEY,
+	    tenant_id VARCHAR(50) NOT NULL,
 	    name VARCHAR(100) NOT NULL,
 	    description TEXT,
 	    price NUMERIC(10,2) NOT NULL CHECK (price >= 0),
@@ -84,18 +87,16 @@ func InitializeSchema(ctx context.Context, db *sqlx.DB) error {
 	    category_id VARCHAR(50) REFERENCES food_category(id) ON DELETE CASCADE,
 	    image_url TEXT,
 	    avoidance TEXT,
-	    is_vegetarian BOOLEAN DEFAULT FALSE,
-		is_active BOOLEAN DEFAULT TRUE,
-	    tenant_id VARCHAR(50) NOT NULL,
-	    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT,
-	    updated_at BIGINT DEFAULT EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW()))::BIGINT,
-	    CONSTRAINT fk_category FOREIGN KEY (category_id) REFERENCES food_category(id),
-	    CONSTRAINT valid_price CHECK (price >= 0)
+	    is_vegetarian BOOLEAN NOT NULL DEFAULT FALSE,
+	    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+	    created_at BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW())) * 1000)::BIGINT,
+	    updated_at BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW())) * 1000)::BIGINT,
+	    delivered_at BIGINT
 	);
 
-	CREATE INDEX idx_food_category_tenant ON food_category(tenant_id);
-	CREATE INDEX idx_food_item_tenant ON food_item(tenant_id);
-	CREATE INDEX idx_food_item_category ON food_item(category_id);
+	CREATE INDEX IF NOT EXISTS idx_food_category_tenant ON food_category(tenant_id);
+	CREATE INDEX IF NOT EXISTS idx_food_item_tenant ON food_item(tenant_id);
+	CREATE INDEX IF NOT EXISTS idx_food_item_category ON food_item(category_id);
 	`
 	if err := SetUserContext(ctx, db, "test-tenant"); err != nil {
 		return err

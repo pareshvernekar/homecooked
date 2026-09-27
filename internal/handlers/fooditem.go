@@ -109,7 +109,12 @@ func (h *FoodItemHandler) CreateFoodItem(c *gin.Context) {
 	if err != nil {
 		duration := time.Since(startTime).Milliseconds()
 		h.Logger.Error(ctx, "CreateFoodItem: Failed to create food item in database", "duration_ms", duration, "tenant_id", tenantID, "error", err.Error())
-		c.Status(http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, views.ErrorResponse{
+			Success:   false,
+			ErrorCode: "DATABASE_ERROR",
+			Message:   "Failed to create food item",
+			Timestamp: time.Now().UTC(),
+		})
 		return
 	}
 
