@@ -12,14 +12,14 @@ import "time"
 // Food Item DTOs
 // -----------------------------------------------------------------------------
 
-// FoodItemResponse represents the food item in JSON responses
+// FoodItemResponse represents the food item in JSON responses.
+// REQFOOD001: no catalog price.
 type FoodItemResponse struct {
 	ID           string    `json:"id"`
 	TenantID     string    `json:"tenant_id"`
 	Name         string    `json:"name"`
 	Description  string    `json:"description,omitempty"`
 	CategoryID   string    `json:"category_id"`
-	Price        float64   `json:"price"`
 	ImageURL     string    `json:"image_url,omitempty"`
 	Avoidance    string    `json:"avoidance,omitempty"`
 	IsVegetarian bool      `json:"is_vegetarian"`
@@ -28,13 +28,13 @@ type FoodItemResponse struct {
 	UpdatedAt    time.Time `json:"updated_at"`
 }
 
-// FoodItemPartialResponse represents a food item in list responses (minimal)
+// FoodItemPartialResponse represents a food item in list responses (minimal).
+// REQFOOD001: no catalog price.
 type FoodItemPartialResponse struct {
 	ID         string    `json:"id"`
 	TenantID   string    `json:"tenant_id"`
 	Name       string    `json:"name"`
 	CategoryID string    `json:"category_id"`
-	Price      float64   `json:"price"`
 	Status     string    `json:"availability_status"`
 	CreatedAt  time.Time `json:"created_at"`
 }

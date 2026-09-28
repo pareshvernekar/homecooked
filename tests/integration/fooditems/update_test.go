@@ -9,13 +9,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-
 func TestUpdateFoodItem(t *testing.T) {
 	env := setupIntegrationEnv(t)
-	id := createFoodItemViaAPI(t, env, "Chicken Biryani", 249.99)
+	id := createFoodItemViaAPI(t, env, "Chicken Biryani")
 
 	ctx, resp := doJSONRequest(t, http.MethodPut, "/api/v1/food-items/"+id, map[string]interface{}{
-		"price":               349.99,
+		"name":                "Chicken Biryani Deluxe",
 		"availability_status": "available",
 	}, gin.Params{{Key: "id", Value: id}})
 	env.Handler.UpdateFoodItem(ctx)
@@ -26,18 +25,16 @@ func TestUpdateFoodItem(t *testing.T) {
 	assert.Equal(t, "Food item updated successfully", response.Message)
 
 	var name string
-	var price float64
 	err := env.DBConn.QueryRow(
-		`SELECT name, price FROM food_item WHERE id = $1 AND tenant_id = $2`, id, testTenantID,
-	).Scan(&name, &price)
+		`SELECT name FROM food_item WHERE id = $1 AND tenant_id = $2`, id, testTenantID,
+	).Scan(&name)
 	require.NoError(t, err)
-	assert.Equal(t, "Chicken Biryani", name, "partial update must preserve name")
-	assert.Equal(t, 349.99, price)
+	assert.Equal(t, "Chicken Biryani Deluxe", name)
 }
 
 func TestUpdateFoodItem_PartialAvailability(t *testing.T) {
 	env := setupIntegrationEnv(t)
-	id := createFoodItemViaAPI(t, env, "Paneer Tikka", 199.00)
+	id := createFoodItemViaAPI(t, env, "Paneer Tikka")
 
 	ctx, resp := doJSONRequest(t, http.MethodPut, "/api/v1/food-items/"+id, map[string]interface{}{
 		"availability_status": "low_stock",
@@ -46,12 +43,11 @@ func TestUpdateFoodItem_PartialAvailability(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, resp.Code, "body: %s", resp.Body.String())
 
-	var status string
-	var price float64
+	var status, name string
 	err := env.DBConn.QueryRow(
-		`SELECT availability_status, price FROM food_item WHERE id = $1 AND tenant_id = $2`, id, testTenantID,
-	).Scan(&status, &price)
+		`SELECT availability_status, name FROM food_item WHERE id = $1 AND tenant_id = $2`, id, testTenantID,
+	).Scan(&status, &name)
 	require.NoError(t, err)
 	assert.Equal(t, "low_stock", status)
-	assert.Equal(t, 199.00, price, "partial update must preserve price")
+	assert.Equal(t, "Paneer Tikka", name, "partial update must preserve name")
 }

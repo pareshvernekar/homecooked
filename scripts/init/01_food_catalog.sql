@@ -6,6 +6,7 @@
 -- Multi-tenancy: every catalog row is scoped by tenant_id.
 -- Primary keys are composite (tenant_id, id). Foreign keys to categories
 -- are also composite so cross-tenant category references are impossible.
+-- REQFOOD001: food_item has no price column.
 
 CREATE TABLE IF NOT EXISTS tenant (
     id          VARCHAR(50) PRIMARY KEY,
@@ -33,7 +34,6 @@ CREATE TABLE IF NOT EXISTS food_item (
     tenant_id           VARCHAR(50) NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
     name                VARCHAR(100) NOT NULL,
     description         TEXT,
-    price               NUMERIC(10,2) NOT NULL CHECK (price >= 0),
     availability_status VARCHAR(50) NOT NULL
         CHECK (availability_status IN ('available', 'low_stock', 'unavailable')),
     category_id         VARCHAR(50),

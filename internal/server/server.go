@@ -52,6 +52,8 @@ func SetupRoutes(
 	_ *logger.Logger,
 	foodCategoryHandler *handlers.FoodCategoryHandler,
 	foodItemHandler *handlers.FoodItemHandler,
+	sizeUnitHandler *handlers.SizeUnitHandler,
+	menuHandler *handlers.MenuHandler,
 ) {
 	v1 := router.Group("/api/v1")
 
@@ -64,6 +66,24 @@ func SetupRoutes(
 	v1.POST("/food-items", foodItemHandler.CreateFoodItem)
 	v1.PUT("/food-items/:id", foodItemHandler.UpdateFoodItem)
 	v1.DELETE("/food-items/:id", foodItemHandler.DeleteFoodItem)
+
+	v1.GET("/size-units", sizeUnitHandler.ListSizeUnits)
+	v1.POST("/size-units", sizeUnitHandler.CreateSizeUnit)
+	v1.DELETE("/size-units/:id", sizeUnitHandler.DeleteSizeUnit)
+
+	v1.POST("/menus", menuHandler.CreateMenu)
+	v1.GET("/menus", menuHandler.ListMenus)
+	v1.GET("/menus/:id", menuHandler.GetMenu)
+	v1.PUT("/menus/:id", menuHandler.UpdateMenu)
+	v1.DELETE("/menus/:id", menuHandler.DeleteMenu)
+	v1.POST("/menus/:id/publish", menuHandler.PublishMenu)
+	v1.POST("/menus/:id/unpublish", menuHandler.UnpublishMenu)
+
+	v1.POST("/menus/:id/items", menuHandler.AddMenuItem)
+	v1.DELETE("/menus/:id/items/:itemId", menuHandler.DeleteMenuItem)
+	v1.POST("/menus/:id/items/:itemId/components/:componentId/size-options", menuHandler.AddSizeOption)
+	v1.PUT("/menus/:id/items/:itemId/components/:componentId/size-options/:optionId", menuHandler.UpdateSizeOption)
+	v1.DELETE("/menus/:id/items/:itemId/components/:componentId/size-options/:optionId", menuHandler.DeleteSizeOption)
 }
 
 // Run starts the HTTP server and blocks until ctx is cancelled or Listen fails.

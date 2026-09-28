@@ -88,7 +88,7 @@ func (h *FoodItemHandler) CreateFoodItem(c *gin.Context) {
 		return
 	}
 
-	h.Logger.Info(ctx, "CreateFoodItem: Request JSON parsed successfully", "name", createRequest.Name, "price", createRequest.Price)
+	h.Logger.Info(ctx, "CreateFoodItem: Request JSON parsed successfully", "name", createRequest.Name)
 
 	if err := validation.ValidateFoodItemCreate(&createRequest); err != nil {
 		duration := time.Since(startTime).Milliseconds()
@@ -97,7 +97,7 @@ func (h *FoodItemHandler) CreateFoodItem(c *gin.Context) {
 		return
 	}
 
-	h.Logger.Info(ctx, "CreateFoodItem: Validation passed", "name", createRequest.Name, "category", createRequest.CategoryName, "price", createRequest.Price)
+	h.Logger.Info(ctx, "CreateFoodItem: Validation passed", "name", createRequest.Name, "category", createRequest.CategoryName)
 
 	tenantID := c.GetString(middleware.TenantIDKey)
 
