@@ -34,7 +34,7 @@ func (r *PostgreSQLFoodItemRepository) GetByID(ctx context.Context, id string) (
 	var foodItem models.FoodItem
 	r.Logger.Info(ctx, "GetByID: Fetching food item for tenant", "tenant_id", r.TenantID, "id", id)
 	query := `
-		SELECT id, tenant_id, name, COALESCE(description, '') as description, COALESCE(price, 0) as price,
+		SELECT id, tenant_id, name, COALESCE(description, '') as description,
 		       category_id, COALESCE(image_url, '') as image_url, COALESCE(avoidance, '') as avoidance,
 		       COALESCE(is_vegetarian, false) as is_vegetarian,
 		       COALESCE(availability_status, 'available') as availability_status, created_at, updated_at
@@ -71,9 +71,10 @@ func (r *PostgreSQLFoodItemRepository) Create(ctx context.Context, f *models.Foo
 		return err
 	}
 
-	query := `INSERT INTO food_item (id, name, description, price, category_id, availability_status, tenant_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+	// REQFOOD001
+	query := `INSERT INTO food_item (id, name, description, category_id, availability_status, tenant_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 	result, err := r.DB.ExecContext(ctx, query,
-		f.ID, f.Name, f.Description, f.Price, f.CategoryID, f.AvailabilityStatus, r.TenantID, now, now)
+		f.ID, f.Name, f.Description, f.CategoryID, f.AvailabilityStatus, r.TenantID, now, now)
 	if err != nil {
 		r.Logger.Error(ctx, "Create: Failed to create food item", "tenant_id", r.TenantID, "id", f.ID, "error", err)
 		return err
@@ -106,9 +107,10 @@ func (r *PostgreSQLFoodItemRepository) Update(ctx context.Context, id string, fo
 	}
 
 	updatedAt := time.Now().UTC().UnixMilli()
-	query := `UPDATE food_item SET name = $1, description = $2, price = $3, category_id = $4, image_url = $5, avoidance = $6, is_vegetarian = $7, availability_status = $8, updated_at = $9 WHERE tenant_id = $10 AND id = $11`
+	// REQFOOD001
+	query := `UPDATE food_item SET name = $1, description = $2, category_id = $3, image_url = $4, avoidance = $5, is_vegetarian = $6, availability_status = $7, updated_at = $8 WHERE tenant_id = $9 AND id = $10`
 	result, err := r.DB.ExecContext(ctx, query,
-		foodItem.Name, foodItem.Description, foodItem.Price, foodItem.CategoryID,
+		foodItem.Name, foodItem.Description, foodItem.CategoryID,
 		foodItem.ImageURL, foodItem.Avoidance, foodItem.IsVegetarian, foodItem.AvailabilityStatus,
 		updatedAt, r.TenantID, id)
 	if err != nil {
@@ -161,7 +163,7 @@ func (r *PostgreSQLFoodItemRepository) ListByTenant(ctx context.Context, offset,
 	}
 
 	var foodItems []*models.FoodItem
-	selectQuery := `SELECT id, tenant_id, name, COALESCE(description, '') as description, COALESCE(price, 0) as price, category_id as category_id, created_at, updated_at FROM food_item WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`
+	selectQuery := `SELECT id, tenant_id, name, COALESCE(description, '') as description, category_id as category_id, created_at, updated_at FROM food_item WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`
 
 	if err := r.DB.SelectContext(ctx, &foodItems, selectQuery, r.TenantID, limit, offset); err != nil {
 		r.Logger.Error(ctx, "ListByTenant: Failed to retrieve paginated food items", "tenant_id", r.TenantID, "error", err)

@@ -9,7 +9,7 @@ Feature: Food Item API interactions
     And a food category exists via the API with name "vegetarian"
 
   Scenario: Create a food item
-    When I create a food item named "Paneer Tikka" with price 199.0
+    When I create a food item named "Paneer Tikka"
     Then the response status code should be 201
     And the response success flag should be true
 
@@ -23,7 +23,7 @@ Feature: Food Item API interactions
     Given a food item exists via the API named "Butter Naan"
     When I send a PUT request to the created food item with JSON:
       """
-      {"price":49.0}
+      {"name":"Butter Naan Soft"}
       """
     Then the response status code should be 200
     And the response success flag should be true

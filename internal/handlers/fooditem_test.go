@@ -21,7 +21,6 @@ func (s *MockFoodItemService) Create(ctx context.Context, createReq *models.Food
 		ID:          "550e8400-e29b-41d4-a716-446655440000",
 		Name:        "Burger",
 		Description: "A delicious burger",
-		Price:       9.99,
 		CategoryID:  "category-1234",
 		TenantID:    tenantID,
 	}, nil
@@ -33,7 +32,6 @@ func (s *MockFoodItemService) List(ctx context.Context, tenantID string, page in
 			ID:          "550e8400-e29b-41d4-a716-446655440000",
 			Name:        "Burger",
 			Description: "A delicious burger",
-			Price:       9.99,
 			CategoryID:  "category-1234",
 			TenantID:    tenantID,
 		},
@@ -45,7 +43,6 @@ func (s *MockFoodItemService) GetByID(ctx context.Context, id string, tenantID s
 		ID:          id,
 		Name:        "Burger",
 		Description: "A delicious burger",
-		Price:       9.99,
 		CategoryID:  "category-1234",
 		TenantID:    tenantID,
 	}, nil
@@ -78,7 +75,7 @@ func TestUpdateFoodItem_Success(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 
-	body := `{"name":"Updated Burger","description":"An updated description","price":15.99}`
+	body := `{"name":"Updated Burger","description":"An updated description"}`
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/food-items/550e8400-e29b-41d4-a716-446655440001", bytes.NewBufferString(body))
 
 	w := httptest.NewRecorder()
@@ -112,7 +109,7 @@ func TestCreateFoodItem_InvalidRequest(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 
-	body := `{"name":"","price":0,"category":""}`
+	body := `{"name":"","category":""}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/food-items", bytes.NewBufferString(body))
 
 	w := httptest.NewRecorder()

@@ -34,14 +34,6 @@ func ValidateFoodItemCreate(data *models.FoodItemCreateRequest) error {
 		return fmt.Errorf("category_name %v is invalid", data.CategoryName)
 	}
 
-	// Field: Price (required, >= 0)
-	if err := validate.Var(data.Price, "required"); err != nil {
-		return fmt.Errorf("price %v", err)
-	}
-	if data.Price < 0 {
-		return fmt.Errorf("price must be greater than or equal to 0")
-	}
-
 	// IsVegetarian is optional but required when provided
 	if data.IsVegetarian == nil {
 		return nil
@@ -75,17 +67,6 @@ func ValidateFoodItemUpdate(data *models.FoodItemUpdateRequest) error {
 	if data.CategoryName != "" {
 		if !models.IsValidCategory(data.CategoryName) {
 			return fmt.Errorf("category_name must be one of: vegetarian, non-vegetarian, vegan, dessert, beverage, appetizer, main_course, sides")
-		}
-	}
-
-	// Price validation - required if provided (not 0), must be >= 0
-	// Partial update: price can be omitted to keep existing value
-	if data.Price != 0 {
-		if err := validate.Var(data.Price, "required"); err != nil {
-			return fmt.Errorf("price is required but cannot be empty: %v", err)
-		}
-		if data.Price < 0 {
-			return fmt.Errorf("price must be greater than or equal to 0")
 		}
 	}
 

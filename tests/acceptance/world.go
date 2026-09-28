@@ -30,9 +30,14 @@ type apiWorld struct {
 	lastStatus int
 	lastBody   []byte
 
-	lastCategoryID string
-	lastFoodItemID string
-	lastUniqueName string
+	lastCategoryID   string
+	lastCategoryName string
+	lastFoodItemID   string
+	lastFoodItemID2  string
+	lastUniqueName   string
+	lastMenuID       string
+	lastMenuCategory string
+	lastSizeUnitID   string
 }
 
 func newAPIWorld() *apiWorld {
@@ -58,8 +63,13 @@ func (w *apiWorld) resetScenario() {
 	w.lastStatus = 0
 	w.lastBody = nil
 	w.lastCategoryID = ""
+	w.lastCategoryName = ""
 	w.lastFoodItemID = ""
+	w.lastFoodItemID2 = ""
 	w.lastUniqueName = ""
+	w.lastMenuID = ""
+	w.lastMenuCategory = ""
+	w.lastSizeUnitID = ""
 }
 
 func (w *apiWorld) uniqueName(prefix string) string {
@@ -161,6 +171,7 @@ func (w *apiWorld) createCategoryViaAPI(namePrefix string) error {
 		}
 		w.lastCategoryID = id
 		w.lastUniqueName = name
+		w.lastCategoryName = name
 		return nil
 	}
 
@@ -172,6 +183,7 @@ func (w *apiWorld) createCategoryViaAPI(namePrefix string) error {
 		}
 		w.lastCategoryID = id
 		w.lastUniqueName = namePrefix
+		w.lastCategoryName = namePrefix
 		return nil
 	}
 
@@ -209,17 +221,17 @@ func (w *apiWorld) findCategoryIDByName(name string) (string, error) {
 }
 
 func (w *apiWorld) createFoodItemViaAPI(namePrefix string) error {
-	categoryName := w.lastUniqueName
+	categoryName := w.lastCategoryName
 	if categoryName == "" {
 		if err := w.createCategoryViaAPI("vegetarian"); err != nil {
 			return err
 		}
-		categoryName = w.lastUniqueName
+		categoryName = w.lastCategoryName
 	}
 
 	itemName := w.uniqueName(namePrefix)
 	body := fmt.Sprintf(
-		`{"name":%q,"description":%q,"price":10.0,"category_name":%q,"availability_status":"available"}`,
+		`{"name":%q,"description":%q,"category_name":%q,"availability_status":"available"}`,
 		itemName, namePrefix+" description", categoryName,
 	)
 	if err := w.doRequest(http.MethodPost, "/api/v1/food-items", body); err != nil {
@@ -234,4 +246,214 @@ func (w *apiWorld) createFoodItemViaAPI(namePrefix string) error {
 	}
 	w.lastFoodItemID = id
 	return nil
+}
+
+func (w *apiWorld) createSecondFoodItemViaAPI(namePrefix string) error {
+	categoryName := w.lastCategoryName
+	if categoryName == "" {
+		if err := w.createCategoryViaAPI("vegetarian"); err != nil {
+			return err
+		}
+		categoryName = w.lastCategoryName
+	}
+	itemName := w.uniqueName(namePrefix)
+	body := fmt.Sprintf(
+		`{"name":%q,"description":%q,"category_name":%q,"availability_status":"available"}`,
+		itemName, namePrefix+" description", categoryName,
+	)
+	if err := w.doRequest(http.MethodPost, "/api/v1/food-items", body); err != nil {
+		return err
+	}
+	if w.lastStatus != http.StatusCreated {
+		return fmt.Errorf("create second food item expected 201, got %d body=%s", w.lastStatus, string(w.lastBody))
+	}
+	id, err := w.extractDataID()
+	if err != nil {
+		return err
+	}
+	w.lastFoodItemID2 = id
+	return nil
+}
+
+func (w *apiWorld) createDraftDailyMenu(namePrefix, categoryName string) error {
+	menuName := w.uniqueName(namePrefix)
+	menuDate := time.Now().UTC().Format("2006-01-02")
+	body := fmt.Sprintf(
+		`{"name":%q,"menu_type":"daily","menu_date":%q,"categories":[{"name":%q,"sequence":1}]}`,
+		menuName, menuDate, categoryName,
+	)
+	if err := w.doRequest(http.MethodPost, "/api/v1/menus", body); err != nil {
+		return err
+	}
+	createStatus := w.lastStatus
+	createBody := append([]byte(nil), w.lastBody...)
+	if createStatus != http.StatusCreated {
+		return fmt.Errorf("create menu expected 201, got %d body=%s", createStatus, string(createBody))
+	}
+	id, err := w.extractDataID()
+	if err != nil {
+		return err
+	}
+	w.lastMenuID = id
+
+	if err := w.doRequest(http.MethodGet, "/api/v1/menus/"+w.lastMenuID, ""); err != nil {
+		return err
+	}
+	if w.lastStatus != http.StatusOK {
+		return fmt.Errorf("get menu tree expected 200, got %d body=%s", w.lastStatus, string(w.lastBody))
+	}
+	var payload map[string]interface{}
+	if err := json.Unmarshal(w.lastBody, &payload); err != nil {
+		return err
+	}
+	data, ok := payload["data"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("menu tree data is not an object: %s", string(w.lastBody))
+	}
+	cats, ok := data["categories"].([]interface{})
+	if !ok || len(cats) == 0 {
+		return fmt.Errorf("menu tree has no categories: %s", string(w.lastBody))
+	}
+	cat, ok := cats[0].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("first category is not an object")
+	}
+	catID, _ := cat["id"].(string)
+	if catID == "" {
+		return fmt.Errorf("menu category id missing")
+	}
+	w.lastMenuCategory = catID
+
+	// Restore create response for subsequent Then assertions.
+	w.lastStatus = createStatus
+	w.lastBody = createBody
+	return nil
+}
+
+func (w *apiWorld) addComboMenuItem(name string, priceA, priceB float64) error {
+	if w.lastMenuID == "" || w.lastMenuCategory == "" {
+		return fmt.Errorf("no created menu/category available")
+	}
+	if w.lastFoodItemID == "" || w.lastFoodItemID2 == "" {
+		return fmt.Errorf("need two food items for combo")
+	}
+	body := fmt.Sprintf(`{
+		"category_id":%q,
+		"kind":"combo",
+		"name":%q,
+		"components":[
+			{"food_item_id":%q,"default_size_index":0,"size_options":[{"size_unit_id":"su_serving","qty":1,"price":%v}]},
+			{"food_item_id":%q,"default_size_index":0,"size_options":[{"size_unit_id":"su_serving","qty":1,"price":%v}]}
+		]
+	}`, w.lastMenuCategory, name, w.lastFoodItemID, priceA, w.lastFoodItemID2, priceB)
+	return w.doRequest(http.MethodPost, "/api/v1/menus/"+w.lastMenuID+"/items", body)
+}
+
+func (w *apiWorld) addSimpleMenuItem(name string, price float64) error {
+	if w.lastMenuID == "" || w.lastMenuCategory == "" {
+		return fmt.Errorf("no created menu/category available")
+	}
+	if w.lastFoodItemID == "" {
+		return fmt.Errorf("no food item available")
+	}
+	body := fmt.Sprintf(`{
+		"category_id":%q,
+		"kind":"simple",
+		"name":%q,
+		"components":[
+			{"food_item_id":%q,"default_size_index":0,"size_options":[{"size_unit_id":"su_serving","qty":1,"price":%v}]}
+		]
+	}`, w.lastMenuCategory, name, w.lastFoodItemID, price)
+	return w.doRequest(http.MethodPost, "/api/v1/menus/"+w.lastMenuID+"/items", body)
+}
+
+func (w *apiWorld) menuStatusFromLastBody() (string, error) {
+	var payload map[string]interface{}
+	if err := json.Unmarshal(w.lastBody, &payload); err != nil {
+		return "", err
+	}
+	data, ok := payload["data"].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("data is not an object: %s", string(w.lastBody))
+	}
+	status, _ := data["status"].(string)
+	if status == "" {
+		return "", fmt.Errorf("status missing: %s", string(w.lastBody))
+	}
+	return status, nil
+}
+
+func (w *apiWorld) firstItemDefaultTotal() (float64, error) {
+	var payload map[string]interface{}
+	if err := json.Unmarshal(w.lastBody, &payload); err != nil {
+		return 0, err
+	}
+	data, ok := payload["data"].(map[string]interface{})
+	if !ok {
+		return 0, fmt.Errorf("data is not an object")
+	}
+	cats, ok := data["categories"].([]interface{})
+	if !ok || len(cats) == 0 {
+		return 0, fmt.Errorf("no categories")
+	}
+	cat := cats[0].(map[string]interface{})
+	items, ok := cat["items"].([]interface{})
+	if !ok || len(items) == 0 {
+		return 0, fmt.Errorf("no items")
+	}
+	item := items[0].(map[string]interface{})
+	total, ok := item["default_total"].(float64)
+	if !ok {
+		return 0, fmt.Errorf("default_total missing: %v", item)
+	}
+	return total, nil
+}
+
+func (w *apiWorld) listContainsCreatedMenu() (bool, error) {
+	if w.lastMenuID == "" {
+		return false, fmt.Errorf("no created menu id")
+	}
+	var payload map[string]interface{}
+	if err := json.Unmarshal(w.lastBody, &payload); err != nil {
+		return false, err
+	}
+	data, ok := payload["data"].([]interface{})
+	if !ok {
+		// empty list may be null
+		if payload["data"] == nil {
+			return false, nil
+		}
+		return false, fmt.Errorf("list data is not an array: %s", string(w.lastBody))
+	}
+	for _, row := range data {
+		obj, ok := row.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if obj["id"] == w.lastMenuID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (w *apiWorld) sizeUnitListHasCode(code string) error {
+	var payload map[string]interface{}
+	if err := json.Unmarshal(w.lastBody, &payload); err != nil {
+		return err
+	}
+	data, ok := payload["data"].([]interface{})
+	if !ok {
+		return fmt.Errorf("size units data is not an array: %s", string(w.lastBody))
+	}
+	for _, row := range data {
+		obj, ok := row.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if obj["code"] == code {
+			return nil
+		}
+	}
+	return fmt.Errorf("size unit code %q not found in %s", code, string(w.lastBody))
 }

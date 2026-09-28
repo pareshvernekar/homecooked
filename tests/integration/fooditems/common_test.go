@@ -99,13 +99,12 @@ func asArray(t *testing.T, data interface{}) []interface{} {
 	return arr
 }
 
-func createFoodItemViaAPI(t *testing.T, env *integrationEnv, name string, price float64) string {
+func createFoodItemViaAPI(t *testing.T, env *integrationEnv, name string) string {
 	t.Helper()
 
 	ctx, resp := doJSONRequest(t, http.MethodPost, "/api/v1/food-items", map[string]interface{}{
 		"name":                name,
 		"description":         name + " description",
-		"price":               price,
 		"category_name":       "vegetarian",
 		"availability_status": "available",
 	}, nil)

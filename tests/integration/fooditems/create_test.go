@@ -8,14 +8,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-
+// REQFOOD001
 func TestCreateFoodItem(t *testing.T) {
 	env := setupIntegrationEnv(t)
 
 	ctx, resp := doJSONRequest(t, http.MethodPost, "/api/v1/food-items", map[string]interface{}{
 		"name":                "Chicken Biryani",
 		"description":         "Rich and flavorful biryani with aromatic spices",
-		"price":               249.99,
 		"category_name":       "vegetarian",
 		"availability_status": "available",
 		"is_vegetarian":       true,
@@ -32,19 +31,18 @@ func TestCreateFoodItem(t *testing.T) {
 	require.True(t, ok)
 	require.NotEmpty(t, id, "created food item must have a generated ID")
 	assert.Equal(t, "Chicken Biryani", obj["name"])
-	assert.Equal(t, 249.99, obj["price"])
+	_, hasPrice := obj["price"]
+	assert.False(t, hasPrice, "REQFOOD001: response must not include catalog price")
 	assert.Equal(t, testTenantID, obj["tenant_id"])
 	assert.Equal(t, "available", obj["availability_status"])
 	assert.NotEmpty(t, obj["category_id"])
 
 	var dbName string
-	var dbPrice float64
 	err := env.DBConn.QueryRow(
-		`SELECT name, price FROM food_item WHERE id = $1 AND tenant_id = $2`, id, testTenantID,
-	).Scan(&dbName, &dbPrice)
+		`SELECT name FROM food_item WHERE id = $1 AND tenant_id = $2`, id, testTenantID,
+	).Scan(&dbName)
 	require.NoError(t, err)
 	assert.Equal(t, "Chicken Biryani", dbName)
-	assert.Equal(t, 249.99, dbPrice)
 }
 
 func TestCreateFoodItem_UnknownCategory(t *testing.T) {
@@ -54,7 +52,6 @@ func TestCreateFoodItem_UnknownCategory(t *testing.T) {
 	ctx, resp := doJSONRequest(t, http.MethodPost, "/api/v1/food-items", map[string]interface{}{
 		"name":                "Mystery Dish",
 		"description":         "Category missing from tenant catalog",
-		"price":               10.0,
 		"category_name":       "vegan",
 		"availability_status": "available",
 	}, nil)
@@ -72,4 +69,23 @@ func TestCreateFoodItem_ValidationError(t *testing.T) {
 	env.Handler.CreateFoodItem(ctx)
 
 	require.Equal(t, http.StatusBadRequest, resp.Code, "body: %s", resp.Body.String())
+}
+
+// REQFOOD001S02: price in payload is ignored (not persisted).
+func TestCreateFoodItem_IgnoresPriceField(t *testing.T) {
+	env := setupIntegrationEnv(t)
+
+	ctx, resp := doJSONRequest(t, http.MethodPost, "/api/v1/food-items", map[string]interface{}{
+		"name":                "Priced Payload",
+		"description":         "client still sends price",
+		"category_name":       "vegetarian",
+		"availability_status": "available",
+		"price":               99.99,
+	}, nil)
+	env.Handler.CreateFoodItem(ctx)
+
+	require.Equal(t, http.StatusCreated, resp.Code, "body: %s", resp.Body.String())
+	obj := asObject(t, decodeSuccess(t, resp).Data)
+	_, hasPrice := obj["price"]
+	assert.False(t, hasPrice)
 }

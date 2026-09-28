@@ -172,20 +172,27 @@ func (h *FoodItemHandler) DeleteFoodItem(c *gin.Context)
 ## API Endpoints
 
 ### Food Items API
-- `POST /api/v1/food-items` - Create food item
+- `POST /api/v1/food-items` - Create food item (no catalog price — REQFOOD001)
 - `GET /api/v1/food-items` - List with pagination
 - `PUT /api/v1/food-items/:id` - Update
 - `DELETE /api/v1/food-items/:id` - Delete
 
-### Categories API (placeholder)
+### Size Units API
+- `GET /api/v1/size-units` - System standards + tenant customs
+- `POST /api/v1/size-units` - Create tenant custom unit
+- `DELETE /api/v1/size-units/:id` - Soft-deactivate tenant custom only
+
+### Menus API
+- `POST|GET /api/v1/menus` - Create draft / list (default published; `?status=draft|all`)
+- `GET|PUT|DELETE /api/v1/menus/:id` - Get tree / update draft / soft-deactivate
+- `POST /api/v1/menus/:id/publish` - Publish when structurally complete
+- `POST /api/v1/menus/:id/unpublish` - Published → draft
+- `POST|DELETE /api/v1/menus/:id/items[/:itemId]` - Add/remove items on draft menus
+- Nested component size-options under `/menus/:id/items/:itemId/components/:componentId/size-options`
+
+### Categories API
 - `POST /api/v1/categories` - Create category
 - `GET /api/v1/categories` - List categories
-
-### Weekly Menus API (placeholder)
-- `POST /api/v1/weekly-menus` - Placeholder stubs
-
-### Catering Menus API (placeholder)
-- `POST /api/v1/catering-menus` - Placeholder stubs
 
 ### Orders API (placeholder)
 - `POST /api/v1/orders` - Placeholder stubs
@@ -226,10 +233,10 @@ const (
 ## Database Schema
 
 Key tables:
-- `food_item` - Catalog items with tenant_id column (RLS)
-- Categories table (placeholder)
-- Weekly menus table (placeholder)
-- Catering menus table (placeholder)
+- `food_item` - Catalog items with tenant_id (no price column)
+- `food_category` - Tenant food categories
+- `size_unit` - System + tenant custom size units
+- `menu` / `menu_category` / `menu_item` / `menu_item_component` / `menu_item_component_size_option` - Unified menus
 - Orders table (placeholder)
 - Notifications table (placeholder)
 

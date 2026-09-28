@@ -12,7 +12,7 @@ import (
 
 func TestDeleteFoodItem(t *testing.T) {
 	env := setupIntegrationEnv(t)
-	id := createFoodItemViaAPI(t, env, "Chicken Biryani", 249.99)
+	id := createFoodItemViaAPI(t, env, "Chicken Biryani")
 
 	ctx, resp := doJSONRequest(t, http.MethodDelete, "/api/v1/food-items/"+id, nil, gin.Params{
 		{Key: "id", Value: id},

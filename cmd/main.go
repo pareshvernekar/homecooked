@@ -18,6 +18,9 @@ import (
 	"github.com/pareshvernekar/homecooked/internal/server"
 	foodcategoryService "github.com/pareshvernekar/homecooked/internal/services/foodcategory"
 	fooditemService "github.com/pareshvernekar/homecooked/internal/services/fooditem"
+	menuService "github.com/pareshvernekar/homecooked/internal/services/menu"
+	menuitemService "github.com/pareshvernekar/homecooked/internal/services/menuitem"
+	sizeunitService "github.com/pareshvernekar/homecooked/internal/services/sizeunit"
 )
 
 func main() {
@@ -52,17 +55,25 @@ func main() {
 
 	var foodCategoryRepo = repo.NewFoodCategoryRepository(db, loggerInstance, tenantID)
 	var foodItemRepo = repo.NewFoodItemRepository(db, loggerInstance, tenantID)
+	var sizeUnitRepo = repo.NewSizeUnitRepository(db, loggerInstance, tenantID)
+	var menuRepo = repo.NewMenuRepository(db, loggerInstance, tenantID)
+	var menuItemRepo = repo.NewMenuItemRepository(db, loggerInstance, tenantID)
 
 	foodCategoryService := foodcategoryService.NewFoodCategoryService(foodCategoryRepo, loggerInstance)
 	foodItemService := fooditemService.NewFoodItemService(foodItemRepo, loggerInstance, foodCategoryService)
+	sizeUnitService := sizeunitService.NewService(sizeUnitRepo, loggerInstance)
+	menuSvc := menuService.NewService(menuRepo, menuItemRepo, loggerInstance)
+	menuItemSvc := menuitemService.NewService(menuItemRepo, menuSvc, sizeUnitService, loggerInstance)
 
 	foodCategoryHandler := handlers.NewFoodCategoryHandler(foodCategoryService, loggerInstance)
 	foodItemHandler := handlers.NewFoodItemHandler(foodItemService, loggerInstance)
+	sizeUnitHandler := handlers.NewSizeUnitHandler(sizeUnitService, loggerInstance)
+	menuHandler := handlers.NewMenuHandler(menuSvc, menuItemSvc, loggerInstance)
 
 	srv := server.NewServer(db, loggerInstance)
 	router := srv.Router
 	gin.SetMode(gin.ReleaseMode)
-	server.SetupRoutes(router, db, loggerInstance, foodCategoryHandler, foodItemHandler)
+	server.SetupRoutes(router, db, loggerInstance, foodCategoryHandler, foodItemHandler, sizeUnitHandler, menuHandler)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

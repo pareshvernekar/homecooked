@@ -89,7 +89,6 @@ func TestCreateFoodItem_Success(t *testing.T) {
 		Name:               "Classic Margherita Pizza",
 		Description:        "Traditional Italian pizza with tomato sauce, mozzarella cheese, and fresh basil",
 		CategoryName:       "vegetarian", // Will be normalized to "vegetarian"
-		Price:              12.99,
 		IsVegetarian:       boolPtr(true),
 		AvailabilityStatus: "available", // Will be normalized to "available"
 	}
@@ -123,7 +122,6 @@ func TestCreateFoodItem_ValidationError(t *testing.T) {
 	invalidReq := &models.FoodItemCreateRequest{
 		Name:               "",
 		CategoryName:       "vegetarian",
-		Price:              0,
 		IsVegetarian:       nil,
 		AvailabilityStatus: "available",
 	}
@@ -155,7 +153,6 @@ func TestCreateFoodItem_DatabaseError(t *testing.T) {
 		Name:               "Test Item",
 		Description:        "Test Description",
 		CategoryName:       "vegetarian",
-		Price:              10.0,
 		IsVegetarian:       nil,
 		AvailabilityStatus: "available",
 	}
@@ -187,7 +184,6 @@ func TestGetFoodItemByDBCacheHit(t *testing.T) {
 			Name:               "Delicious Pasta Bolognese",
 			Description:        "Hearty Italian beef and tomato pasta dish",
 			CategoryID:         "non_vegetarian",
-			Price:              14.50,
 			IsVegetarian:       false,
 			AvailabilityStatus: "available",
 			CreatedAt:          currTime,
@@ -226,7 +222,6 @@ func TestGetFoodItemByDBCacheMiss(t *testing.T) {
 			Name:               "Fresh Garden Salad",
 			Description:        "Mixed greens with seasonal vegetables",
 			CategoryID:         "category-1",
-			Price:              9.99,
 			IsVegetarian:       true,
 			AvailabilityStatus: "available",
 			CreatedAt:          currTime,
@@ -284,8 +279,8 @@ func TestListFoodItems_Success(t *testing.T) {
 	currTime := time.Now().UTC().UnixMilli()
 	mockRepo.On("ListByTenant", mock.Anything, 0, 10).Return(
 		[]*models.FoodItem{
-			{ID: "pizza-1", TenantID: tenantID, Name: "Pizza Margherita", Description: "Classic", CategoryID: "vegetarian", Price: 12.99, IsVegetarian: true, AvailabilityStatus: "available", CreatedAt: currTime, UpdatedAt: currTime},
-			{ID: "pasta-1", TenantID: tenantID, Name: "Spaghetti Carbonara", Description: "Italian classic", CategoryID: "non_vegetarian", Price: 15.99, IsVegetarian: false, AvailabilityStatus: "available", CreatedAt: currTime, UpdatedAt: currTime},
+			{ID: "pizza-1", TenantID: tenantID, Name: "Pizza Margherita", Description: "Classic", CategoryID: "vegetarian", IsVegetarian: true, AvailabilityStatus: "available", CreatedAt: currTime, UpdatedAt: currTime},
+			{ID: "pasta-1", TenantID: tenantID, Name: "Spaghetti Carbonara", Description: "Italian classic", CategoryID: "non_vegetarian", IsVegetarian: false, AvailabilityStatus: "available", CreatedAt: currTime, UpdatedAt: currTime},
 		},
 		int64(2), // total count
 		nil,
@@ -309,7 +304,7 @@ func TestListFoodItems_Pagination(t *testing.T) {
 	currTime := time.Now().UTC().UnixMilli()
 	// Test page 2 with limit 5
 	mockRepo.On("ListByTenant", mock.Anything, 5, 5).Return(
-		[]*models.FoodItem{{ID: "item-3", TenantID: tenantID, Name: "Third Item", CategoryID: "vegan", Price: 8.99, IsVegetarian: true, AvailabilityStatus: "available", CreatedAt: currTime, UpdatedAt: currTime}},
+		[]*models.FoodItem{{ID: "item-3", TenantID: tenantID, Name: "Third Item", CategoryID: "vegan", IsVegetarian: true, AvailabilityStatus: "available", CreatedAt: currTime, UpdatedAt: currTime}},
 		int64(10), // total count
 		nil,
 	)
@@ -365,7 +360,6 @@ func TestUpdateFoodItem_Success(t *testing.T) {
 			Name:               "Old Name",
 			Description:        "Old description",
 			CategoryID:         "category-2",
-			Price:              10.99,
 			IsVegetarian:       true,
 			AvailabilityStatus: "available",
 			CreatedAt:          currTime,
@@ -387,7 +381,6 @@ func TestUpdateFoodItem_Success(t *testing.T) {
 		Name:               "Updated Pizza Name",
 		Description:        "Updated description with new details",
 		CategoryName:       "vegan",
-		Price:              15.99,
 		IsVegetarian:       boolPtr(false),
 		AvailabilityStatus: "available",
 	}
@@ -414,7 +407,6 @@ func TestUpdateFoodItem_ValidationFailed(t *testing.T) {
 			Name:               "Test Pizza",
 			Description:        "Old description",
 			CategoryID:         "category-2",
-			Price:              10.99,
 			IsVegetarian:       true,
 			AvailabilityStatus: "available",
 			CreatedAt:          currTime,
@@ -431,11 +423,10 @@ func TestUpdateFoodItem_ValidationFailed(t *testing.T) {
 
 	svc := NewFoodItemService(mockRepo, l, categoryService)
 
-	// Negative price is invalid even under partial-update semantics
+	// Invalid category_name fails validation under partial-update semantics
 	updateReq := &models.FoodItemUpdateRequest{
 		Name:               "Valid Name",
-		CategoryName:       "vegan",
-		Price:              -5.00,
+		CategoryName:       "not-a-real-category",
 		IsVegetarian:       nil,
 		AvailabilityStatus: "available",
 	}
@@ -468,7 +459,6 @@ func TestUpdateFoodItem_ItemNotFound(t *testing.T) {
 		Name:               "New Name",
 		Description:        "New description",
 		CategoryName:       "vegetarian",
-		Price:              10.99,
 		IsVegetarian:       nil,
 		AvailabilityStatus: "available",
 	}
@@ -499,7 +489,6 @@ func TestDeleteFoodItem_Success(t *testing.T) {
 			Name:               "Test Pizza",
 			Description:        "Test description",
 			CategoryID:         "vegetarian",
-			Price:              10.99,
 			IsVegetarian:       true,
 			AvailabilityStatus: "available",
 			CreatedAt:          currTime,
