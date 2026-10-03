@@ -181,6 +181,27 @@ func (e *tenantEnv) pay(t *testing.T, id, mode string, amount float64) {
 	require.NoError(t, err)
 }
 
+// toReady walks an order RECEIVED → ACCEPTED → IN_PROGRESS → READY via lifecycle actions.
+func (e *tenantEnv) toReady(t *testing.T, id string) {
+	t.Helper()
+	ctx := context.Background()
+	_, err := e.svc.Accept(ctx, e.tenantID, id)
+	require.NoError(t, err)
+	_, err = e.svc.StartPreparing(ctx, e.tenantID, id)
+	require.NoError(t, err)
+	_, err = e.svc.Ready(ctx, e.tenantID, id)
+	require.NoError(t, err)
+}
+
+// pickup walks the order to READY then picks it up.
+func (e *tenantEnv) pickup(t *testing.T, id string) *models.OrderDetail {
+	t.Helper()
+	e.toReady(t, id)
+	d, err := e.svc.Pickup(context.Background(), e.tenantID, id)
+	require.NoError(t, err)
+	return d
+}
+
 func requireStatus(t *testing.T, err error, code int) {
 	t.Helper()
 	require.Error(t, err)
@@ -484,28 +505,19 @@ func TestFreezeAtPickedUp(t *testing.T) {
 		assert.Equal(t, "nut-free", *d.CustomizationText)
 		assert.Equal(t, "Bina", d.CustomerName)
 
-		_, err = e.svc.Update(ctx, e.tenantID, o.ID, &models.OrderUpdateRequest{Status: ptr("BOGUS")})
-		requireStatus(t, err, 400)
 		_, err = e.svc.Update(ctx, e.tenantID, o.ID, &models.OrderUpdateRequest{CustomerName: ptr(" ")})
 		requireStatus(t, err, 400)
 		_, err = e.svc.Update(ctx, e.tenantID, o.ID, &models.OrderUpdateRequest{
 			TotalOverride: models.NullableFloat64{Set: true, Value: ptr(-1.0)},
 		})
 		requireStatus(t, err, 400)
-
-		for _, st := range []string{"IN_PROGRESS", "COMPLETE", "RECEIVED"} {
-			d, err = e.svc.Update(ctx, e.tenantID, o.ID, &models.OrderUpdateRequest{Status: ptr(st)})
-			require.NoError(t, err)
-			assert.Equal(t, st, d.Status)
-		}
 	})
 
 	t.Run("REQORDER004S02_freeze_ignores_later_price_changes", func(t *testing.T) {
 		o := e.createOrder(t)
 		e.addRice(t, o.ID, 2) // live 5 x 2 = 10
 		before := time.Now().UnixMilli()
-		d, err := e.svc.Update(ctx, e.tenantID, o.ID, &models.OrderUpdateRequest{Status: ptr(models.OrderStatusPickedUp)})
-		require.NoError(t, err)
+		d := e.pickup(t, o.ID)
 		assert.Equal(t, models.OrderStatusPickedUp, d.Status)
 		require.NotNil(t, d.PickedupAt)
 		assert.GreaterOrEqual(t, *d.PickedupAt, before)
@@ -524,11 +536,11 @@ func TestFreezeAtPickedUp(t *testing.T) {
 	t.Run("REQORDER004S02_freeze_uses_overrides", func(t *testing.T) {
 		o := e.createOrder(t)
 		e.addRice(t, o.ID, 2)
-		d, err := e.svc.Update(ctx, e.tenantID, o.ID, &models.OrderUpdateRequest{
-			Status:        ptr(models.OrderStatusPickedUp),
+		_, err := e.svc.Update(ctx, e.tenantID, o.ID, &models.OrderUpdateRequest{
 			TotalOverride: models.NullableFloat64{Set: true, Value: ptr(8.0)},
 		})
 		require.NoError(t, err)
+		d := e.pickup(t, o.ID)
 		assert.Equal(t, 8.0, d.ChargedTotal)
 		assert.Equal(t, 8.0, *d.FrozenTotal)
 	})
@@ -536,20 +548,18 @@ func TestFreezeAtPickedUp(t *testing.T) {
 	t.Run("REQORDER004_pickedup_at_supplied_is_kept", func(t *testing.T) {
 		o := e.createOrder(t)
 		at := int64(1_700_000_000_000)
-		d, err := e.svc.Update(ctx, e.tenantID, o.ID, &models.OrderUpdateRequest{
-			Status: ptr(models.OrderStatusPickedUp), PickedupAt: &at,
-		})
+		_, err := e.svc.Update(ctx, e.tenantID, o.ID, &models.OrderUpdateRequest{PickedupAt: &at})
 		require.NoError(t, err)
+		d := e.pickup(t, o.ID)
 		assert.Equal(t, at, *d.PickedupAt)
 	})
 
 	t.Run("REQORDER003S03_money_overrides_rejected_after_pickedup", func(t *testing.T) {
 		o := e.createOrder(t)
 		e.addRice(t, o.ID, 1)
-		_, err := e.svc.Update(ctx, e.tenantID, o.ID, &models.OrderUpdateRequest{Status: ptr(models.OrderStatusPickedUp)})
-		require.NoError(t, err)
+		e.pickup(t, o.ID)
 
-		_, err = e.svc.Update(ctx, e.tenantID, o.ID, &models.OrderUpdateRequest{
+		_, err := e.svc.Update(ctx, e.tenantID, o.ID, &models.OrderUpdateRequest{
 			TotalOverride: models.NullableFloat64{Set: true, Value: ptr(1.0)},
 		})
 		requireStatus(t, err, 400)
@@ -569,10 +579,9 @@ func TestFreezeAtPickedUp(t *testing.T) {
 	t.Run("REQOLINE001S04_REQOLINE004_line_mutations_rejected_after_pickedup", func(t *testing.T) {
 		o := e.createOrder(t)
 		line := e.addRice(t, o.ID, 1)
-		_, err := e.svc.Update(ctx, e.tenantID, o.ID, &models.OrderUpdateRequest{Status: ptr(models.OrderStatusPickedUp)})
-		require.NoError(t, err)
+		e.pickup(t, o.ID)
 
-		_, err = e.svc.AddLine(ctx, e.tenantID, o.ID, &models.OrderLineCreateRequest{MenuItemID: e.riceItemID, Quantity: 1})
+		_, err := e.svc.AddLine(ctx, e.tenantID, o.ID, &models.OrderLineCreateRequest{MenuItemID: e.riceItemID, Quantity: 1})
 		requireStatus(t, err, 400)
 		_, err = e.svc.UpdateLine(ctx, e.tenantID, o.ID, line.ID, &models.OrderLineUpdateRequest{
 			UnitPriceOverride: models.NullableFloat64{Set: true, Value: ptr(1.0)},
@@ -587,8 +596,7 @@ func TestFreezeAtPickedUp(t *testing.T) {
 	t.Run("REQORDER004S03_unpaid_pickedup_allowed", func(t *testing.T) {
 		o := e.createOrder(t)
 		e.addRice(t, o.ID, 1)
-		d, err := e.svc.Update(ctx, e.tenantID, o.ID, &models.OrderUpdateRequest{Status: ptr(models.OrderStatusPickedUp)})
-		require.NoError(t, err)
+		d := e.pickup(t, o.ID)
 		assert.False(t, d.PaymentReceived)
 		assert.Equal(t, 5.0, d.Balance)
 	})
@@ -692,8 +700,7 @@ func TestPayments(t *testing.T) {
 
 	t.Run("REQPAY001S03_payment_after_pickedup", func(t *testing.T) {
 		o := newOrder50(t)
-		d, err := e.svc.Update(ctx, e.tenantID, o.ID, &models.OrderUpdateRequest{Status: ptr(models.OrderStatusPickedUp)})
-		require.NoError(t, err)
+		d := e.pickup(t, o.ID)
 		assert.False(t, d.PaymentReceived)
 
 		e.pay(t, o.ID, "paypal", 50)
@@ -709,5 +716,203 @@ func TestPayments(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, ps, 1)
 		assert.Equal(t, "credit", ps[0].Mode)
+	})
+}
+
+// REQLIFE001–REQLIFE005
+func TestLifecycle(t *testing.T) {
+	ctx := context.Background()
+	db := newDB(t)
+	e := newTenant(t, db, "tenant-a")
+
+	t.Run("REQLIFE001S01_REQLIFE002S01_REQLIFE004_happy_path", func(t *testing.T) {
+		o := e.createOrder(t)
+		e.addRice(t, o.ID, 2)
+
+		d, err := e.svc.Accept(ctx, e.tenantID, o.ID)
+		require.NoError(t, err)
+		assert.Equal(t, models.OrderStatusAccepted, d.Status)
+
+		d, err = e.svc.StartPreparing(ctx, e.tenantID, o.ID)
+		require.NoError(t, err)
+		assert.Equal(t, models.OrderStatusInProgress, d.Status)
+
+		d, err = e.svc.Ready(ctx, e.tenantID, o.ID)
+		require.NoError(t, err)
+		assert.Equal(t, models.OrderStatusReady, d.Status)
+
+		d, err = e.svc.Pickup(ctx, e.tenantID, o.ID) // REQLIFE004S03
+		require.NoError(t, err)
+		assert.Equal(t, models.OrderStatusPickedUp, d.Status)
+		require.NotNil(t, d.PickedupAt)
+		require.NotNil(t, d.FrozenTotal)
+		assert.Equal(t, 10.0, *d.FrozenTotal)
+		assert.Equal(t, models.OrderStatusPickedUp, e.get(t, o.ID).Status)
+	})
+
+	t.Run("REQLIFE001S02_reject_skip_received_to_ready", func(t *testing.T) {
+		o := e.createOrder(t)
+		_, err := e.svc.Ready(ctx, e.tenantID, o.ID)
+		requireStatus(t, err, 400)
+		_, err = e.svc.StartPreparing(ctx, e.tenantID, o.ID)
+		requireStatus(t, err, 400)
+		_, err = e.svc.Pickup(ctx, e.tenantID, o.ID)
+		requireStatus(t, err, 400)
+		assert.Equal(t, models.OrderStatusReceived, e.get(t, o.ID).Status)
+	})
+
+	t.Run("REQLIFE001_reject_illegal_edges", func(t *testing.T) {
+		o := e.createOrder(t)
+		_, err := e.svc.Accept(ctx, e.tenantID, o.ID)
+		require.NoError(t, err)
+		_, err = e.svc.Accept(ctx, e.tenantID, o.ID) // REQLIFE002: only from RECEIVED
+		requireStatus(t, err, 400)
+		_, err = e.svc.Refuse(ctx, e.tenantID, o.ID, "") // REQLIFE003: only from RECEIVED
+		requireStatus(t, err, 400)
+		_, err = e.svc.Ready(ctx, e.tenantID, o.ID)
+		requireStatus(t, err, 400)
+		assert.Equal(t, models.OrderStatusAccepted, e.get(t, o.ID).Status)
+
+		_, err = e.svc.StartPreparing(ctx, e.tenantID, o.ID)
+		require.NoError(t, err)
+		_, err = e.svc.Ready(ctx, e.tenantID, o.ID)
+		require.NoError(t, err)
+		_, err = e.svc.Pickup(ctx, e.tenantID, o.ID)
+		require.NoError(t, err)
+		for _, fn := range []func() (*models.OrderDetail, error){
+			func() (*models.OrderDetail, error) { return e.svc.Accept(ctx, e.tenantID, o.ID) },
+			func() (*models.OrderDetail, error) { return e.svc.Pickup(ctx, e.tenantID, o.ID) },
+		} {
+			_, err := fn()
+			requireStatus(t, err, 400)
+		}
+	})
+
+	t.Run("REQLIFE001S03_reject_transitions_out_of_declined", func(t *testing.T) {
+		o := e.createOrder(t)
+		_, err := e.svc.Refuse(ctx, e.tenantID, o.ID, "")
+		require.NoError(t, err)
+		for _, fn := range []func() (*models.OrderDetail, error){
+			func() (*models.OrderDetail, error) { return e.svc.Accept(ctx, e.tenantID, o.ID) },
+			func() (*models.OrderDetail, error) { return e.svc.StartPreparing(ctx, e.tenantID, o.ID) },
+			func() (*models.OrderDetail, error) { return e.svc.Ready(ctx, e.tenantID, o.ID) },
+			func() (*models.OrderDetail, error) { return e.svc.Pickup(ctx, e.tenantID, o.ID) },
+			func() (*models.OrderDetail, error) { return e.svc.Refuse(ctx, e.tenantID, o.ID, "again") },
+		} {
+			_, err := fn()
+			requireStatus(t, err, 400)
+		}
+		assert.Equal(t, models.OrderStatusDeclined, e.get(t, o.ID).Status)
+	})
+
+	t.Run("REQLIFE003S01_refuse_default_reason", func(t *testing.T) {
+		o := e.createOrder(t)
+		for _, reason := range []string{""} {
+			d, err := e.svc.Refuse(ctx, e.tenantID, o.ID, reason)
+			require.NoError(t, err)
+			assert.Equal(t, models.OrderStatusDeclined, d.Status)
+			require.NotNil(t, d.RefuseReason)
+			assert.Equal(t, "No available slots", *d.RefuseReason)
+		}
+		got := e.get(t, o.ID)
+		require.NotNil(t, got.RefuseReason)
+		assert.Equal(t, models.DefaultRefuseReason, *got.RefuseReason)
+
+		blank := e.createOrder(t)
+		d, err := e.svc.Refuse(ctx, e.tenantID, blank.ID, "   ")
+		require.NoError(t, err)
+		assert.Equal(t, models.DefaultRefuseReason, *d.RefuseReason)
+	})
+
+	t.Run("REQLIFE003S02_refuse_custom_reason", func(t *testing.T) {
+		o := e.createOrder(t)
+		d, err := e.svc.Refuse(ctx, e.tenantID, o.ID, "  Catering queue full ")
+		require.NoError(t, err)
+		assert.Equal(t, models.OrderStatusDeclined, d.Status)
+		require.NotNil(t, d.RefuseReason)
+		assert.Equal(t, "Catering queue full", *d.RefuseReason)
+		assert.Equal(t, "Catering queue full", *e.get(t, o.ID).RefuseReason)
+	})
+
+	t.Run("REQLIFE_unknown_order_404", func(t *testing.T) {
+		_, err := e.svc.Accept(ctx, e.tenantID, uuid.New().String())
+		requireStatus(t, err, 404)
+		_, err = e.svc.Refuse(ctx, e.tenantID, uuid.New().String(), "")
+		requireStatus(t, err, 404)
+	})
+
+	t.Run("REQLIFE005S01_patch_status_rejected", func(t *testing.T) {
+		o := e.createOrder(t)
+		for _, st := range []string{"ACCEPTED", "RECEIVED", "COMPLETE", "PICKEDUP", "BOGUS"} {
+			_, err := e.svc.Update(ctx, e.tenantID, o.ID, &models.OrderUpdateRequest{Status: ptr(st)})
+			requireStatus(t, err, 400)
+		}
+		assert.Equal(t, models.OrderStatusReceived, e.get(t, o.ID).Status)
+	})
+
+	t.Run("REQOLINE001S05_lines_editable_after_accepted_through_ready", func(t *testing.T) {
+		o := e.createOrder(t)
+		_, err := e.svc.Accept(ctx, e.tenantID, o.ID)
+		require.NoError(t, err)
+		line := e.addRice(t, o.ID, 1)
+		_, err = e.svc.StartPreparing(ctx, e.tenantID, o.ID)
+		require.NoError(t, err)
+		_, err = e.svc.UpdateLine(ctx, e.tenantID, o.ID, line.ID, &models.OrderLineUpdateRequest{Quantity: ptr(3)})
+		require.NoError(t, err)
+		_, err = e.svc.Ready(ctx, e.tenantID, o.ID)
+		require.NoError(t, err)
+		require.NoError(t, e.svc.RemoveLine(ctx, e.tenantID, o.ID, line.ID))
+	})
+
+	t.Run("REQORDER003S02_total_override_on_accepted", func(t *testing.T) {
+		o := e.createOrder(t)
+		e.addRice(t, o.ID, 2)
+		_, err := e.svc.Accept(ctx, e.tenantID, o.ID)
+		require.NoError(t, err)
+		d, err := e.svc.Update(ctx, e.tenantID, o.ID, &models.OrderUpdateRequest{
+			TotalOverride: models.NullableFloat64{Set: true, Value: ptr(7.0)},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 7.0, d.ChargedTotal)
+	})
+
+	t.Run("REQORDER003S04_REQOLINE_REQPAY001S04_declined_is_read_only", func(t *testing.T) {
+		o := e.createOrder(t)
+		line := e.addRice(t, o.ID, 1)
+		_, err := e.svc.Refuse(ctx, e.tenantID, o.ID, "")
+		require.NoError(t, err)
+
+		// REQORDER003S04
+		_, err = e.svc.Update(ctx, e.tenantID, o.ID, &models.OrderUpdateRequest{
+			TotalOverride: models.NullableFloat64{Set: true, Value: ptr(1.0)},
+		})
+		requireStatus(t, err, 400)
+		_, err = e.svc.Update(ctx, e.tenantID, o.ID, &models.OrderUpdateRequest{
+			TotalOverride: models.NullableFloat64{Set: true, Value: nil},
+		})
+		requireStatus(t, err, 400)
+		_, err = e.svc.Update(ctx, e.tenantID, o.ID, &models.OrderUpdateRequest{CustomerName: ptr("Bina")})
+		requireStatus(t, err, 400)
+
+		// REQOLINE001S06, REQOLINE004S03
+		_, err = e.svc.AddLine(ctx, e.tenantID, o.ID, &models.OrderLineCreateRequest{MenuItemID: e.riceItemID, Quantity: 1})
+		requireStatus(t, err, 400)
+		_, err = e.svc.UpdateLine(ctx, e.tenantID, o.ID, line.ID, &models.OrderLineUpdateRequest{Quantity: ptr(2)})
+		requireStatus(t, err, 400)
+		requireStatus(t, e.svc.RemoveLine(ctx, e.tenantID, o.ID, line.ID), 400)
+
+		// REQPAY001S04
+		_, err = e.svc.RecordPayment(ctx, e.tenantID, o.ID, &models.PaymentCreateRequest{Mode: "cash", Amount: 5})
+		requireStatus(t, err, 400)
+		ps, err := e.svc.ListPayments(ctx, e.tenantID, o.ID)
+		require.NoError(t, err)
+		assert.Empty(t, ps)
+
+		// get/list still work
+		d := e.get(t, o.ID)
+		assert.Equal(t, models.OrderStatusDeclined, d.Status)
+		assert.Len(t, d.Lines, 1)
+		_, err = e.svc.List(ctx, e.tenantID)
+		require.NoError(t, err)
 	})
 }

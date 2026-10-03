@@ -194,11 +194,17 @@ func (h *FoodItemHandler) DeleteFoodItem(c *gin.Context)
 - `POST /api/v1/categories` - Create category
 - `GET /api/v1/categories` - List categories
 
-### Orders API (REQORDER001–005, REQOLINE001–004, REQPAY001–004)
+### Orders API (REQORDER001–005, REQLIFE001–005, REQOLINE001–004, REQPAY001–004)
 - `POST|GET /api/v1/orders` - Create against a published daily|catering menu / list active orders
-- `GET|PATCH /api/v1/orders/:id` - Get (lines, charged_total, payment aggregates) / update header & status (PICKEDUP freezes totals)
-- `POST|PATCH|DELETE /api/v1/orders/:id/items[/:itemId]` - Lines with per-component size selections (unfulfilled orders only)
-- `POST|GET /api/v1/orders/:id/payments` - Record / list payments (cash, credit, paypal, zelle, venmo; overpay allowed)
+- `GET|PATCH /api/v1/orders/:id` - Get (lines, charged_total, payment aggregates, refuse_reason) / update header fields only (a `status` in PATCH is rejected with 400)
+- Lifecycle actions (statuses `RECEIVED`, `ACCEPTED`, `DECLINED`, `IN_PROGRESS`, `READY`, `PICKEDUP`; `COMPLETE` was renamed to `READY`; illegal transition → 400):
+  - `POST /api/v1/orders/:id/accept` - RECEIVED → ACCEPTED
+  - `POST /api/v1/orders/:id/refuse` - RECEIVED → DECLINED; optional body `{"reason": "..."}` (default `No available slots`); DECLINED is terminal and rejects payments, line changes, and header edits
+  - `POST /api/v1/orders/:id/start-preparing` - ACCEPTED → IN_PROGRESS
+  - `POST /api/v1/orders/:id/ready` - IN_PROGRESS → READY
+  - `POST /api/v1/orders/:id/pickup` - READY → PICKEDUP (freezes charged total; unpaid pickup allowed)
+- `POST|PATCH|DELETE /api/v1/orders/:id/items[/:itemId]` - Lines with per-component size selections (unfulfilled orders only: RECEIVED, ACCEPTED, IN_PROGRESS, READY)
+- `POST|GET /api/v1/orders/:id/payments` - Record / list payments (cash, credit, paypal, zelle, venmo; overpay allowed; rejected on DECLINED)
 
 ### Notifications API (placeholder)
 - `POST /api/v1/notifications` - Placeholder stubs

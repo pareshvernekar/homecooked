@@ -296,6 +296,12 @@ func (w *apiWorld) iRecordACashPaymentOfOnTheOrder(amount float64) error {
 	return w.recordCashPayment(amount)
 }
 
+func (w *apiWorld) iAcceptTheOrder() error { return w.orderAction("accept") }
+
+func (w *apiWorld) iStartPreparingTheOrder() error { return w.orderAction("start-preparing") }
+
+func (w *apiWorld) iMarkTheOrderReady() error { return w.orderAction("ready") }
+
 func (w *apiWorld) iMarkTheOrderAsPICKEDUP() error {
 	return w.markOrderPickedUp()
 }
@@ -422,6 +428,9 @@ func InitializeScenario(ctx *godog.ScenarioContext, w *apiWorld) {
 	ctx.Step(`^I get the created order$`, w.iGetTheCreatedOrder)
 	ctx.Step(`^I update the published size option price to (\d+(?:\.\d+)?)$`, w.iUpdateThePublishedSizeOptionPriceTo)
 	ctx.Step(`^I record a cash payment of (\d+(?:\.\d+)?) on the order$`, w.iRecordACashPaymentOfOnTheOrder)
+	ctx.Step(`^I accept the order$`, w.iAcceptTheOrder)
+	ctx.Step(`^I start preparing the order$`, w.iStartPreparingTheOrder)
+	ctx.Step(`^I mark the order as READY$`, w.iMarkTheOrderReady)
 	ctx.Step(`^I mark the order as PICKEDUP$`, w.iMarkTheOrderAsPICKEDUP)
 	ctx.Step(`^the order status should be "([^"]*)"$`, w.theOrderStatusShouldBe)
 	ctx.Step(`^the order charged_total should be (\d+(?:\.\d+)?)$`, w.theOrderChargedTotalShouldBe)

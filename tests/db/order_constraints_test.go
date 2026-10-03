@@ -71,7 +71,7 @@ func TestOrderSchemaConstraints(t *testing.T) {
 	}
 
 	t.Run("REQORDER001_valid_order_and_status_values", func(t *testing.T) {
-		for _, st := range []string{"RECEIVED", "IN_PROGRESS", "COMPLETE", "PICKEDUP"} {
+		for _, st := range []string{"RECEIVED", "ACCEPTED", "DECLINED", "IN_PROGRESS", "READY", "PICKEDUP"} {
 			_, err := insertOrder(tenantA, a.menuID, st, nil)
 			require.NoError(t, err, st)
 		}
@@ -79,6 +79,8 @@ func TestOrderSchemaConstraints(t *testing.T) {
 
 	t.Run("REQORDER004_status_check", func(t *testing.T) {
 		_, err := insertOrder(tenantA, a.menuID, "DELIVERED", nil)
+		require.Error(t, err)
+		_, err = insertOrder(tenantA, a.menuID, "COMPLETE", nil) // REQORDER004S04: legacy value removed
 		require.Error(t, err)
 		_, err = insertOrder(tenantA, a.menuID, "received", nil)
 		require.Error(t, err)

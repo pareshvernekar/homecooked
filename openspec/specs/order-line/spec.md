@@ -4,7 +4,7 @@
 TBD - created by archiving change order-intake. Update Purpose after archive.
 ## Requirements
 ### Requirement: REQOLINE001 Add line with per-component size selection
-The system SHALL allow adding a line to an active unfulfilled order. Each line MUST reference a menu-item that belongs to the order's bound published menu. The client MAY supply a size_option_id per component; omitted components MUST use that component's default size option. Every supplied size_option_id MUST be one of the component's size options on the published menu. Simple and combo menu-items MUST use the same selection shape. Quantity MUST be a positive integer.
+The system SHALL allow adding a line to an active unfulfilled order. Unfulfilled means status is one of `RECEIVED`, `ACCEPTED`, `IN_PROGRESS`, or `READY`. Adding a line when status is `PICKEDUP` or `DECLINED` MUST be rejected. Each line MUST reference a menu-item that belongs to the order's bound published menu. The client MAY supply a size_option_id per component; omitted components MUST use that component's default size option. Every supplied size_option_id MUST be one of the component's size options on the published menu. Simple and combo menu-items MUST use the same selection shape. Quantity MUST be a positive integer.
 
 #### Scenario: REQOLINE001S01 Add line with defaults
 - **GIVEN** an active unfulfilled order on a published menu that has a simple or combo menu-item with defaults
@@ -26,8 +26,18 @@ The system SHALL allow adding a line to an active unfulfilled order. Each line M
 - **WHEN** the client attempts to add a line
 - **THEN** the system returns HTTP 400 or 409
 
+#### Scenario: REQOLINE001S05 Add line after ACCEPTED
+- **GIVEN** an active order with status ACCEPTED
+- **WHEN** the client adds a valid line
+- **THEN** the system returns success and the line appears on subsequent get
+
+#### Scenario: REQOLINE001S06 Reject line on DECLINED order
+- **GIVEN** an order with status DECLINED
+- **WHEN** the client attempts to add a line
+- **THEN** the system returns HTTP 400 or 409
+
 ### Requirement: REQOLINE002 Line customization and unit price override
-The system SHALL allow optional free-text `customization_text` on each line and an optional non-negative `unit_price_override`. When unit_price_override is set, that value MUST be used as the line unit price instead of the live sum of selected size-option prices. Overrides and customization updates MUST be rejected after PICKEDUP.
+The system SHALL allow optional free-text `customization_text` on each line and an optional non-negative `unit_price_override`. When unit_price_override is set, that value MUST be used as the line unit price instead of the live sum of selected size-option prices. Overrides and customization updates MUST be rejected when the order status is `PICKEDUP` or `DECLINED`.
 
 #### Scenario: REQOLINE002S01 Line spicy note and override
 - **GIVEN** an unfulfilled order line
@@ -40,7 +50,7 @@ The system SHALL allow optional free-text `customization_text` on each line and 
 - **THEN** the line unit price again equals the sum of current selected size-option prices
 
 ### Requirement: REQOLINE003 Live line pricing and contribution to charged total
-While the order is unfulfilled, the system SHALL compute each line's unit price as unit_price_override if set, otherwise the sum of the current prices of the selected size options on the published menu. Line extended amount MUST be unit price × quantity. Order subtotal MUST be the sum of line extended amounts. If the order has total_override set, charged_total MUST equal total_override; otherwise charged_total MUST equal subtotal. After PICKEDUP, charged_total and line amounts MUST use the frozen values.
+While the order is unfulfilled (`RECEIVED`, `ACCEPTED`, `IN_PROGRESS`, or `READY`), the system SHALL compute each line's unit price as unit_price_override if set, otherwise the sum of the current prices of the selected size options on the published menu. Line extended amount MUST be unit price × quantity. Order subtotal MUST be the sum of line extended amounts. If the order has total_override set, charged_total MUST equal total_override; otherwise charged_total MUST equal subtotal. After PICKEDUP, charged_total and line amounts MUST use the frozen values.
 
 #### Scenario: REQOLINE003S01 Menu price change moves unfulfilled total
 - **GIVEN** an unfulfilled order line without overrides whose selections reference size options priced at a sum of P
@@ -58,7 +68,7 @@ While the order is unfulfilled, the system SHALL compute each line's unit price 
 - **THEN** charged_total remains T
 
 ### Requirement: REQOLINE004 Update and remove lines
-The system SHALL allow updating selections, quantity, customization_text, and unit_price_override, and removing lines, only on active unfulfilled orders. Removal MUST exclude the line from subsequent get/list of that order.
+The system SHALL allow updating selections, quantity, customization_text, and unit_price_override, and removing lines, only on active unfulfilled orders (`RECEIVED`, `ACCEPTED`, `IN_PROGRESS`, `READY`). Update and remove MUST be rejected when status is `PICKEDUP` or `DECLINED`. Removal MUST exclude the line from subsequent get/list of that order.
 
 #### Scenario: REQOLINE004S01 Update selection
 - **GIVEN** an unfulfilled order line
@@ -69,4 +79,9 @@ The system SHALL allow updating selections, quantity, customization_text, and un
 - **GIVEN** an unfulfilled order with a line
 - **WHEN** the client removes that line
 - **THEN** subsequent get does not include the line
+
+#### Scenario: REQOLINE004S03 Reject update on DECLINED order
+- **GIVEN** an order with status DECLINED that has a line
+- **WHEN** the client attempts to update or remove that line
+- **THEN** the system returns HTTP 400 or 409
 
