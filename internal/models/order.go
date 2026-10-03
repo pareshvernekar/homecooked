@@ -207,6 +207,12 @@ type OrderUpdateRequest struct {
 	Status            *string         `json:"status,omitempty"`
 }
 
+// OrderRefuseRequest is the optional body of the refuse action.
+// REQLIFE003
+type OrderRefuseRequest struct {
+	Reason string `json:"reason,omitempty"`
+}
+
 // OrderSelectionInput selects a size option for one menu-item component.
 // REQOLINE001
 type OrderSelectionInput struct {

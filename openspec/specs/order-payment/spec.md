@@ -4,15 +4,15 @@
 TBD - created by archiving change order-intake. Update Purpose after archive.
 ## Requirements
 ### Requirement: REQPAY001 Record payment against an order
-The system SHALL allow recording a payment on an existing active order for the current tenant. Each payment MUST include a positive amount and a mode of `cash`, `credit`, `paypal`, `zelle`, or `venmo`. An optional free-text reference MAY be stored. Payments MUST be allowed for any order status including `PICKEDUP`. Cross-tenant orders MUST NOT accept payments.
+The system SHALL allow recording a payment on an existing active order for the current tenant when the order status is not `DECLINED`. Each payment MUST include a positive amount and a mode of `cash`, `credit`, `paypal`, `zelle`, or `venmo`. An optional free-text reference MAY be stored. Payments MUST be allowed for any non-declined order status including `PICKEDUP`. Recording a payment against a `DECLINED` order MUST be rejected. Cross-tenant orders MUST NOT accept payments.
 
 #### Scenario: REQPAY001S01 Record cash payment
-- **GIVEN** an active order for the tenant
+- **GIVEN** an active non-declined order for the tenant
 - **WHEN** the client records a payment with mode cash and amount 20
 - **THEN** the system returns HTTP 201 and the payment appears on subsequent get of the order's payments
 
 #### Scenario: REQPAY001S02 Reject invalid mode or non-positive amount
-- **GIVEN** an active order
+- **GIVEN** an active non-declined order
 - **WHEN** the client records a payment with an unknown mode or amount <= 0
 - **THEN** the system returns HTTP 400
 
@@ -20,6 +20,11 @@ The system SHALL allow recording a payment on an existing active order for the c
 - **GIVEN** an order with status PICKEDUP and outstanding balance
 - **WHEN** the client records a payment covering the balance
 - **THEN** the system accepts the payment and derived payment_received becomes true
+
+#### Scenario: REQPAY001S04 Reject payment on DECLINED order
+- **GIVEN** an order with status DECLINED
+- **WHEN** the client attempts to record a payment
+- **THEN** the system returns HTTP 400 or 409 and no payment is stored
 
 ### Requirement: REQPAY002 Derived payment aggregates
 The system SHALL derive `paid_amount` as the sum of payment amounts for the order, `balance` as charged_total minus paid_amount, `payment_received` as true when balance <= 0, and `overpaid_amount` as max(0, paid_amount − charged_total). These fields MUST appear on order get responses and MUST NOT be independently writable by clients.

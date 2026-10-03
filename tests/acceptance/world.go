@@ -613,11 +613,20 @@ func (w *apiWorld) recordCashPayment(amount float64) error {
 	return w.doRequest(http.MethodPost, "/api/v1/orders/"+w.lastOrderID+"/payments", body)
 }
 
+// orderAction posts a lifecycle action (accept, start-preparing, ready, pickup) for the created order.
+// REQLIFE002, REQLIFE004
+func (w *apiWorld) orderAction(action string) error {
+	if w.lastOrderID == "" {
+		return fmt.Errorf("no created order id")
+	}
+	return w.doRequest(http.MethodPost, "/api/v1/orders/"+w.lastOrderID+"/"+action, "")
+}
+
 func (w *apiWorld) markOrderPickedUp() error {
 	if w.lastOrderID == "" {
 		return fmt.Errorf("no created order id")
 	}
-	return w.doRequest(http.MethodPatch, "/api/v1/orders/"+w.lastOrderID, `{"status":"PICKEDUP"}`)
+	return w.doRequest(http.MethodPost, "/api/v1/orders/"+w.lastOrderID+"/pickup", "")
 }
 
 func (w *apiWorld) dataObjectFromLastBody() (map[string]interface{}, error) {

@@ -2,7 +2,7 @@
 
 **Change:** `openspec/changes/order-lifecycle/`  
 **Branch:** `feature/order-lifecycle`  
-**Status:** Artifacts complete; implementation in progress. Apply before `order-notifications`.
+**Status:** Implementation complete (11/11 tasks). Ready to archive after review. Apply `order-notifications` next on its branch.
 
 ## Locked decisions
 

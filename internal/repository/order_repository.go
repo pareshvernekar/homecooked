@@ -27,7 +27,7 @@ func NewOrderRepository(db *sqlx.DB, l *logger.Logger, tenantID string) *Postgre
 
 const orderSelectCols = `
 	id, tenant_id, menu_id, customer_name, customer_phone, received_at, expected_at, pickedup_at,
-	status, customization_text, total_override::float8 AS total_override, frozen_total::float8 AS frozen_total,
+	status, customization_text, refuse_reason, total_override::float8 AS total_override, frozen_total::float8 AS frozen_total,
 	is_active, created_at, updated_at`
 
 const orderItemSelectCols = `
@@ -61,10 +61,10 @@ func (r *PostgreSQLOrderRepository) CreateOrder(ctx context.Context, o *models.C
 	_, err := r.DB.ExecContext(ctx, `
 		INSERT INTO customer_order (
 			id, tenant_id, menu_id, customer_name, customer_phone, received_at, expected_at, pickedup_at,
-			status, customization_text, total_override, frozen_total, is_active, created_at, updated_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14)`,
+			status, customization_text, refuse_reason, total_override, frozen_total, is_active, created_at, updated_at
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15)`,
 		o.ID, o.TenantID, o.MenuID, o.CustomerName, o.CustomerPhone, o.ReceivedAt, o.ExpectedAt, o.PickedupAt,
-		o.Status, o.CustomizationText, o.TotalOverride, o.FrozenTotal, o.IsActive, now,
+		o.Status, o.CustomizationText, o.RefuseReason, o.TotalOverride, o.FrozenTotal, o.IsActive, now,
 	)
 	return err
 }
@@ -107,10 +107,10 @@ func (r *PostgreSQLOrderRepository) UpdateOrder(ctx context.Context, o *models.C
 	res, err := tx.ExecContext(ctx, `
 		UPDATE customer_order SET
 			customer_name = $1, customer_phone = $2, received_at = $3, expected_at = $4, pickedup_at = $5,
-			status = $6, customization_text = $7, total_override = $8, frozen_total = $9, updated_at = $10
-		WHERE tenant_id = $11 AND id = $12 AND is_active = TRUE`,
+			status = $6, customization_text = $7, refuse_reason = $8, total_override = $9, frozen_total = $10, updated_at = $11
+		WHERE tenant_id = $12 AND id = $13 AND is_active = TRUE`,
 		o.CustomerName, o.CustomerPhone, o.ReceivedAt, o.ExpectedAt, o.PickedupAt,
-		o.Status, o.CustomizationText, o.TotalOverride, o.FrozenTotal, now,
+		o.Status, o.CustomizationText, o.RefuseReason, o.TotalOverride, o.FrozenTotal, now,
 		r.TenantID, o.ID,
 	)
 	if err != nil {
