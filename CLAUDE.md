@@ -194,8 +194,11 @@ func (h *FoodItemHandler) DeleteFoodItem(c *gin.Context)
 - `POST /api/v1/categories` - Create category
 - `GET /api/v1/categories` - List categories
 
-### Orders API (placeholder)
-- `POST /api/v1/orders` - Placeholder stubs
+### Orders API (REQORDER001–005, REQOLINE001–004, REQPAY001–004)
+- `POST|GET /api/v1/orders` - Create against a published daily|catering menu / list active orders
+- `GET|PATCH /api/v1/orders/:id` - Get (lines, charged_total, payment aggregates) / update header & status (PICKEDUP freezes totals)
+- `POST|PATCH|DELETE /api/v1/orders/:id/items[/:itemId]` - Lines with per-component size selections (unfulfilled orders only)
+- `POST|GET /api/v1/orders/:id/payments` - Record / list payments (cash, credit, paypal, zelle, venmo; overpay allowed)
 
 ### Notifications API (placeholder)
 - `POST /api/v1/notifications` - Placeholder stubs
@@ -237,7 +240,7 @@ Key tables:
 - `food_category` - Tenant food categories
 - `size_unit` - System + tenant custom size units
 - `menu` / `menu_category` / `menu_item` / `menu_item_component` / `menu_item_component_size_option` - Unified menus
-- Orders table (placeholder)
+- `customer_order` / `order_item` / `order_item_component_selection` / `order_payment` - Order intake and payment ledger
 - Notifications table (placeholder)
 
 ### Row-Level Security Policy
@@ -326,7 +329,7 @@ func TestUpdateFoodItem_Success(t *testing.T) {
 
 - Current branch: `implementation-phase-4`
 - Core FoodItem CRUD is implemented with validation and caching
-- Other endpoints (categories, weekly menus, catering, orders, notifications) are placeholder stubs
+- Other endpoints (notifications) are placeholder stubs
 - Caching framework built but not fully wired for all operations
 - Multi-tenancy via PostgreSQL RLS
 

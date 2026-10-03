@@ -38,6 +38,12 @@ type apiWorld struct {
 	lastMenuID       string
 	lastMenuCategory string
 	lastSizeUnitID   string
+
+	lastMenuItemID    string
+	lastComponentID   string
+	lastSizeOptionID  string
+	lastOrderID       string
+	lastOrderItemID   string
 }
 
 func newAPIWorld() *apiWorld {
@@ -70,6 +76,11 @@ func (w *apiWorld) resetScenario() {
 	w.lastMenuID = ""
 	w.lastMenuCategory = ""
 	w.lastSizeUnitID = ""
+	w.lastMenuItemID = ""
+	w.lastComponentID = ""
+	w.lastSizeOptionID = ""
+	w.lastOrderID = ""
+	w.lastOrderItemID = ""
 }
 
 func (w *apiWorld) uniqueName(prefix string) string {
@@ -456,4 +467,203 @@ func (w *apiWorld) sizeUnitListHasCode(code string) error {
 		}
 	}
 	return fmt.Errorf("size unit code %q not found in %s", code, string(w.lastBody))
+}
+
+// seedPublishedDailySimpleMenu creates food item + daily menu + simple item + publish.
+// REQORDER001 background setup for acceptance.
+func (w *apiWorld) seedPublishedDailySimpleMenu(price float64) error {
+	if err := w.createFoodItemViaAPI("Order Rice"); err != nil {
+		return err
+	}
+	if err := w.createDraftDailyMenu("Order Daily", "Mains"); err != nil {
+		return err
+	}
+	if err := w.addSimpleMenuItem("Rice Bowl", price); err != nil {
+		return err
+	}
+	if w.lastStatus != http.StatusCreated {
+		return fmt.Errorf("add menu item expected 201, got %d body=%s", w.lastStatus, string(w.lastBody))
+	}
+	if err := w.doRequest(http.MethodPost, "/api/v1/menus/"+w.lastMenuID+"/publish", ""); err != nil {
+		return err
+	}
+	if w.lastStatus != http.StatusOK {
+		return fmt.Errorf("publish menu expected 200, got %d body=%s", w.lastStatus, string(w.lastBody))
+	}
+	return w.captureFirstMenuItemIDs()
+}
+
+func (w *apiWorld) captureFirstMenuItemIDs() error {
+	if err := w.doRequest(http.MethodGet, "/api/v1/menus/"+w.lastMenuID, ""); err != nil {
+		return err
+	}
+	if w.lastStatus != http.StatusOK {
+		return fmt.Errorf("get menu tree expected 200, got %d body=%s", w.lastStatus, string(w.lastBody))
+	}
+	var payload map[string]interface{}
+	if err := json.Unmarshal(w.lastBody, &payload); err != nil {
+		return err
+	}
+	data, ok := payload["data"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("menu tree data is not an object")
+	}
+	cats, ok := data["categories"].([]interface{})
+	if !ok || len(cats) == 0 {
+		return fmt.Errorf("menu tree has no categories")
+	}
+	cat := cats[0].(map[string]interface{})
+	items, ok := cat["items"].([]interface{})
+	if !ok || len(items) == 0 {
+		return fmt.Errorf("menu has no items")
+	}
+	item := items[0].(map[string]interface{})
+	itemID, _ := item["id"].(string)
+	comps, ok := item["components"].([]interface{})
+	if !ok || len(comps) == 0 {
+		return fmt.Errorf("menu item has no components")
+	}
+	comp := comps[0].(map[string]interface{})
+	compID, _ := comp["id"].(string)
+	opts, ok := comp["size_options"].([]interface{})
+	if !ok || len(opts) == 0 {
+		return fmt.Errorf("component has no size options")
+	}
+	opt := opts[0].(map[string]interface{})
+	optID, _ := opt["id"].(string)
+	if itemID == "" || compID == "" || optID == "" {
+		return fmt.Errorf("missing menu item/component/option ids")
+	}
+	w.lastMenuItemID = itemID
+	w.lastComponentID = compID
+	w.lastSizeOptionID = optID
+	return nil
+}
+
+func (w *apiWorld) createOrderForPublishedMenu(customerName, phone string, hoursAhead int) error {
+	if w.lastMenuID == "" {
+		return fmt.Errorf("no published menu id")
+	}
+	expectedAt := time.Now().UTC().Add(time.Duration(hoursAhead) * time.Hour).UnixMilli()
+	body := fmt.Sprintf(
+		`{"menu_id":%q,"customer_name":%q,"customer_phone":%q,"expected_at":%d}`,
+		w.lastMenuID, customerName, phone, expectedAt,
+	)
+	if err := w.doRequest(http.MethodPost, "/api/v1/orders", body); err != nil {
+		return err
+	}
+	if w.lastStatus == http.StatusCreated {
+		id, err := w.extractDataID()
+		if err != nil {
+			return err
+		}
+		w.lastOrderID = id
+	}
+	return nil
+}
+
+func (w *apiWorld) addOrderLine(quantity int) error {
+	if w.lastOrderID == "" || w.lastMenuItemID == "" {
+		return fmt.Errorf("need order and menu item ids")
+	}
+	body := fmt.Sprintf(`{"menu_item_id":%q,"quantity":%d}`, w.lastMenuItemID, quantity)
+	if err := w.doRequest(http.MethodPost, "/api/v1/orders/"+w.lastOrderID+"/items", body); err != nil {
+		return err
+	}
+	if w.lastStatus == http.StatusCreated {
+		id, err := w.extractDataID()
+		if err != nil {
+			return err
+		}
+		w.lastOrderItemID = id
+	}
+	return nil
+}
+
+func (w *apiWorld) getCreatedOrder() error {
+	if w.lastOrderID == "" {
+		return fmt.Errorf("no created order id")
+	}
+	return w.doRequest(http.MethodGet, "/api/v1/orders/"+w.lastOrderID, "")
+}
+
+func (w *apiWorld) updatePublishedSizeOptionPrice(price float64) error {
+	if w.lastMenuID == "" || w.lastMenuItemID == "" || w.lastComponentID == "" || w.lastSizeOptionID == "" {
+		return fmt.Errorf("missing published size option path ids")
+	}
+	path := fmt.Sprintf(
+		"/api/v1/menus/%s/items/%s/components/%s/size-options/%s",
+		w.lastMenuID, w.lastMenuItemID, w.lastComponentID, w.lastSizeOptionID,
+	)
+	body := fmt.Sprintf(`{"price":%v}`, price)
+	if err := w.doRequest(http.MethodPut, path, body); err != nil {
+		return err
+	}
+	if w.lastStatus != http.StatusOK {
+		return fmt.Errorf("update size option price expected 200, got %d body=%s", w.lastStatus, string(w.lastBody))
+	}
+	return nil
+}
+
+func (w *apiWorld) recordCashPayment(amount float64) error {
+	if w.lastOrderID == "" {
+		return fmt.Errorf("no created order id")
+	}
+	body := fmt.Sprintf(`{"mode":"cash","amount":%v}`, amount)
+	return w.doRequest(http.MethodPost, "/api/v1/orders/"+w.lastOrderID+"/payments", body)
+}
+
+func (w *apiWorld) markOrderPickedUp() error {
+	if w.lastOrderID == "" {
+		return fmt.Errorf("no created order id")
+	}
+	return w.doRequest(http.MethodPatch, "/api/v1/orders/"+w.lastOrderID, `{"status":"PICKEDUP"}`)
+}
+
+func (w *apiWorld) dataObjectFromLastBody() (map[string]interface{}, error) {
+	var payload map[string]interface{}
+	if err := json.Unmarshal(w.lastBody, &payload); err != nil {
+		return nil, err
+	}
+	data, ok := payload["data"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("data is not an object: %s", string(w.lastBody))
+	}
+	return data, nil
+}
+
+func (w *apiWorld) orderStringField(field string) (string, error) {
+	data, err := w.dataObjectFromLastBody()
+	if err != nil {
+		return "", err
+	}
+	v, _ := data[field].(string)
+	if v == "" {
+		return "", fmt.Errorf("%s missing or empty: %s", field, string(w.lastBody))
+	}
+	return v, nil
+}
+
+func (w *apiWorld) orderFloatField(field string) (float64, error) {
+	data, err := w.dataObjectFromLastBody()
+	if err != nil {
+		return 0, err
+	}
+	v, ok := data[field].(float64)
+	if !ok {
+		return 0, fmt.Errorf("%s missing or not a number: %s", field, string(w.lastBody))
+	}
+	return v, nil
+}
+
+func (w *apiWorld) orderBoolField(field string) (bool, error) {
+	data, err := w.dataObjectFromLastBody()
+	if err != nil {
+		return false, err
+	}
+	v, ok := data[field].(bool)
+	if !ok {
+		return false, fmt.Errorf("%s missing or not a bool: %s", field, string(w.lastBody))
+	}
+	return v, nil
 }

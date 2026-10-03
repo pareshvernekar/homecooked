@@ -272,6 +272,112 @@ func (w *apiWorld) theResponseSuccessFlagShouldBeTrue() error {
 	return nil
 }
 
+func (w *apiWorld) aPublishedDailyMenuExistsWithASimpleItemPriced(price float64) error {
+	return w.seedPublishedDailySimpleMenu(price)
+}
+
+func (w *apiWorld) iCreateAnOrderForThePublishedMenuForCustomerPhoneExpectedInHours(customer, phone string, hours int) error {
+	return w.createOrderForPublishedMenu(customer, phone, hours)
+}
+
+func (w *apiWorld) iAddALineForTheMenuItemWithQuantity(quantity int) error {
+	return w.addOrderLine(quantity)
+}
+
+func (w *apiWorld) iGetTheCreatedOrder() error {
+	return w.getCreatedOrder()
+}
+
+func (w *apiWorld) iUpdateThePublishedSizeOptionPriceTo(price float64) error {
+	return w.updatePublishedSizeOptionPrice(price)
+}
+
+func (w *apiWorld) iRecordACashPaymentOfOnTheOrder(amount float64) error {
+	return w.recordCashPayment(amount)
+}
+
+func (w *apiWorld) iMarkTheOrderAsPICKEDUP() error {
+	return w.markOrderPickedUp()
+}
+
+func (w *apiWorld) theOrderStatusShouldBe(status string) error {
+	got, err := w.orderStringField("status")
+	if err != nil {
+		return err
+	}
+	if got != status {
+		return fmt.Errorf("expected order status %q, got %q body=%s", status, got, string(w.lastBody))
+	}
+	return nil
+}
+
+func (w *apiWorld) theOrderChargedTotalShouldBe(expected float64) error {
+	got, err := w.orderFloatField("charged_total")
+	if err != nil {
+		return err
+	}
+	if got != expected {
+		return fmt.Errorf("expected charged_total %v, got %v body=%s", expected, got, string(w.lastBody))
+	}
+	return nil
+}
+
+func (w *apiWorld) theOrderPaidAmountShouldBe(expected float64) error {
+	got, err := w.orderFloatField("paid_amount")
+	if err != nil {
+		return err
+	}
+	if got != expected {
+		return fmt.Errorf("expected paid_amount %v, got %v body=%s", expected, got, string(w.lastBody))
+	}
+	return nil
+}
+
+func (w *apiWorld) theOrderBalanceShouldBe(expected float64) error {
+	got, err := w.orderFloatField("balance")
+	if err != nil {
+		return err
+	}
+	if got != expected {
+		return fmt.Errorf("expected balance %v, got %v body=%s", expected, got, string(w.lastBody))
+	}
+	return nil
+}
+
+func (w *apiWorld) theOrderPaymentReceivedShouldBe(expected string) error {
+	want := expected == "true"
+	got, err := w.orderBoolField("payment_received")
+	if err != nil {
+		return err
+	}
+	if got != want {
+		return fmt.Errorf("expected payment_received=%v, got %v body=%s", want, got, string(w.lastBody))
+	}
+	return nil
+}
+
+func (w *apiWorld) theOrderLineUnitPriceShouldBe(expected float64) error {
+	got, err := w.orderFloatField("unit_price")
+	if err != nil {
+		return err
+	}
+	if got != expected {
+		return fmt.Errorf("expected line unit_price %v, got %v body=%s", expected, got, string(w.lastBody))
+	}
+	return nil
+}
+
+func (w *apiWorld) theOrderLineExtendedAmountShouldBe(expected float64) error {
+	got, err := w.orderFloatField("extended_amount")
+	if err != nil {
+		return err
+	}
+	if got != expected {
+		return fmt.Errorf("expected line extended_amount %v, got %v body=%s", expected, got, string(w.lastBody))
+	}
+	return nil
+}
+
 func InitializeScenario(ctx *godog.ScenarioContext, w *apiWorld) {
 	ctx.Before(func(ctx context.Context, sc *godog.Scenario) (context.Context, error) {
 		w.resetScenario()
@@ -308,4 +414,20 @@ func InitializeScenario(ctx *godog.ScenarioContext, w *apiWorld) {
 	ctx.Step(`^I send a DELETE request to the created food item$`, w.iSendADELETERequestToTheCreatedFoodItem)
 	ctx.Step(`^the response status code should be (\d+)$`, w.theResponseStatusCodeShouldBe)
 	ctx.Step(`^the response success flag should be true$`, w.theResponseSuccessFlagShouldBeTrue)
+
+	// Order intake acceptance (REQORDER*, REQOLINE*, REQPAY*, REQITEM006S03)
+	ctx.Step(`^a published daily menu exists with a simple item priced (\d+(?:\.\d+)?)$`, w.aPublishedDailyMenuExistsWithASimpleItemPriced)
+	ctx.Step(`^I create an order for the published menu for customer "([^"]*)" phone "([^"]*)" expected in (\d+) hours$`, w.iCreateAnOrderForThePublishedMenuForCustomerPhoneExpectedInHours)
+	ctx.Step(`^I add a line for the menu item with quantity (\d+)$`, w.iAddALineForTheMenuItemWithQuantity)
+	ctx.Step(`^I get the created order$`, w.iGetTheCreatedOrder)
+	ctx.Step(`^I update the published size option price to (\d+(?:\.\d+)?)$`, w.iUpdateThePublishedSizeOptionPriceTo)
+	ctx.Step(`^I record a cash payment of (\d+(?:\.\d+)?) on the order$`, w.iRecordACashPaymentOfOnTheOrder)
+	ctx.Step(`^I mark the order as PICKEDUP$`, w.iMarkTheOrderAsPICKEDUP)
+	ctx.Step(`^the order status should be "([^"]*)"$`, w.theOrderStatusShouldBe)
+	ctx.Step(`^the order charged_total should be (\d+(?:\.\d+)?)$`, w.theOrderChargedTotalShouldBe)
+	ctx.Step(`^the order paid_amount should be (\d+(?:\.\d+)?)$`, w.theOrderPaidAmountShouldBe)
+	ctx.Step(`^the order balance should be (\d+(?:\.\d+)?)$`, w.theOrderBalanceShouldBe)
+	ctx.Step(`^the order payment_received should be (true|false)$`, w.theOrderPaymentReceivedShouldBe)
+	ctx.Step(`^the order line unit_price should be (\d+(?:\.\d+)?)$`, w.theOrderLineUnitPriceShouldBe)
+	ctx.Step(`^the order line extended_amount should be (\d+(?:\.\d+)?)$`, w.theOrderLineExtendedAmountShouldBe)
 }
