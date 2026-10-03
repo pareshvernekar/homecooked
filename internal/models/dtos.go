@@ -175,38 +175,6 @@ type MenuItemResponse struct {
 }
 
 // -----------------------------------------------------------------------------
-// Order DTOs
-// -----------------------------------------------------------------------------
-
-// OrderResponse represents the order in JSON responses
-type OrderResponse struct {
-	ID           string     `json:"id"`
-	TenantID     string     `json:"tenant_id"`
-	UserID       string     `json:"user_id"`
-	MenuType     string     `json:"menu_type"`
-	MenuID       string     `json:"menu_id"`
-	Status       string     `json:"status"`
-	OrderDate    time.Time  `json:"order_date"`
-	DeliveryDate *time.Time `json:"delivery_date,omitempty"`
-	TotalPrice   float64    `json:"total_price"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
-}
-
-// OrderItemResponse represents an order item in JSON responses
-type OrderItemResponse struct {
-	ID          string    `json:"id"`
-	TenantID    string    `json:"tenant_id"`
-	OrderId     string    `json:"order_id"`
-	MenuItemId  string    `json:"menu_item_id"`
-	FoodItemID  string    `json:"food_item_id"`
-	Quantity    int       `json:"quantity"`
-	Description string    `json:"description,omitempty"`
-	Price       float64   `json:"price"`
-	CreatedAt   time.Time `json:"created_at"`
-}
-
-// -----------------------------------------------------------------------------
 // Notification DTOs
 // -----------------------------------------------------------------------------
 

@@ -15,6 +15,7 @@ import (
 // MenuGate checks draft/active menu for mutations.
 type MenuGate interface {
 	RequireDraftMenu(ctx context.Context, tenantID, id string) (*models.Menu, error)
+	GetActiveMenu(ctx context.Context, tenantID, id string) (*models.Menu, error)
 }
 
 // SizeUnitGate validates size unit references.
@@ -161,10 +162,21 @@ func (s *Service) AddSizeOption(ctx context.Context, tenantID, menuID, itemID, c
 	return opt, nil
 }
 
-// UpdateSizeOption updates a size option on a draft menu.
+// UpdateSizeOption updates a size option on a draft menu. On a published menu only a
+// price-only update is allowed so unfulfilled orders can reflect live prices.
+// REQITEM006, REQITEM006S03
 func (s *Service) UpdateSizeOption(ctx context.Context, tenantID, menuID, itemID, componentID, optionID string, req *models.SizeOptionUpdateRequest) error {
-	if _, err := s.menuGate.RequireDraftMenu(ctx, tenantID, menuID); err != nil {
+	menu, err := s.menuGate.GetActiveMenu(ctx, tenantID, menuID)
+	if err != nil {
 		return err
+	}
+	if menu.Status == models.MenuStatusPublished {
+		if req.Price == nil || req.SizeUnitID != nil || req.Qty != nil || req.IsDefault != nil {
+			return apperrors.CreateValidationError(
+				"menu is not editable while published; only size option price may be updated",
+				map[string]interface{}{"id": menuID},
+			)
+		}
 	}
 	if _, err := s.repo.GetComponentOnMenu(ctx, menuID, itemID, componentID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

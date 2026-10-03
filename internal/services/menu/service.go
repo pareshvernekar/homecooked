@@ -309,6 +309,19 @@ func validateItemStructure(item models.MenuItem) error {
 	return nil
 }
 
+// GetActiveMenu returns an active menu (draft or published) for the tenant.
+// REQITEM006, REQORDER001
+func (s *Service) GetActiveMenu(ctx context.Context, tenantID, id string) (*models.Menu, error) {
+	m, err := s.repo.GetActiveByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, apperrors.CreateNotFoundError("menu", id, tenantID)
+		}
+		return nil, apperrors.CreateDatabaseError("Failed to load menu", err, tenantID)
+	}
+	return m, nil
+}
+
 // RequireDraftMenu exposes draft check for menu-item service.
 func (s *Service) RequireDraftMenu(ctx context.Context, tenantID, id string) (*models.Menu, error) {
 	return s.requireDraft(ctx, tenantID, id)

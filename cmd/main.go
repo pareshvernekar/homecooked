@@ -20,6 +20,7 @@ import (
 	fooditemService "github.com/pareshvernekar/homecooked/internal/services/fooditem"
 	menuService "github.com/pareshvernekar/homecooked/internal/services/menu"
 	menuitemService "github.com/pareshvernekar/homecooked/internal/services/menuitem"
+	orderService "github.com/pareshvernekar/homecooked/internal/services/order"
 	sizeunitService "github.com/pareshvernekar/homecooked/internal/services/sizeunit"
 )
 
@@ -58,22 +59,25 @@ func main() {
 	var sizeUnitRepo = repo.NewSizeUnitRepository(db, loggerInstance, tenantID)
 	var menuRepo = repo.NewMenuRepository(db, loggerInstance, tenantID)
 	var menuItemRepo = repo.NewMenuItemRepository(db, loggerInstance, tenantID)
+	var orderRepo = repo.NewOrderRepository(db, loggerInstance, tenantID)
 
 	foodCategoryService := foodcategoryService.NewFoodCategoryService(foodCategoryRepo, loggerInstance)
 	foodItemService := fooditemService.NewFoodItemService(foodItemRepo, loggerInstance, foodCategoryService)
 	sizeUnitService := sizeunitService.NewService(sizeUnitRepo, loggerInstance)
 	menuSvc := menuService.NewService(menuRepo, menuItemRepo, loggerInstance)
 	menuItemSvc := menuitemService.NewService(menuItemRepo, menuSvc, sizeUnitService, loggerInstance)
+	orderSvc := orderService.NewService(orderRepo, menuSvc, loggerInstance)
 
 	foodCategoryHandler := handlers.NewFoodCategoryHandler(foodCategoryService, loggerInstance)
 	foodItemHandler := handlers.NewFoodItemHandler(foodItemService, loggerInstance)
 	sizeUnitHandler := handlers.NewSizeUnitHandler(sizeUnitService, loggerInstance)
 	menuHandler := handlers.NewMenuHandler(menuSvc, menuItemSvc, loggerInstance)
+	orderHandler := handlers.NewOrderHandler(orderSvc, loggerInstance)
 
 	srv := server.NewServer(db, loggerInstance)
 	router := srv.Router
 	gin.SetMode(gin.ReleaseMode)
-	server.SetupRoutes(router, db, loggerInstance, foodCategoryHandler, foodItemHandler, sizeUnitHandler, menuHandler)
+	server.SetupRoutes(router, db, loggerInstance, foodCategoryHandler, foodItemHandler, sizeUnitHandler, menuHandler, orderHandler)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

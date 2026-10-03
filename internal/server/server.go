@@ -54,6 +54,7 @@ func SetupRoutes(
 	foodItemHandler *handlers.FoodItemHandler,
 	sizeUnitHandler *handlers.SizeUnitHandler,
 	menuHandler *handlers.MenuHandler,
+	orderHandler *handlers.OrderHandler,
 ) {
 	v1 := router.Group("/api/v1")
 
@@ -84,6 +85,16 @@ func SetupRoutes(
 	v1.POST("/menus/:id/items/:itemId/components/:componentId/size-options", menuHandler.AddSizeOption)
 	v1.PUT("/menus/:id/items/:itemId/components/:componentId/size-options/:optionId", menuHandler.UpdateSizeOption)
 	v1.DELETE("/menus/:id/items/:itemId/components/:componentId/size-options/:optionId", menuHandler.DeleteSizeOption)
+
+	v1.POST("/orders", orderHandler.CreateOrder)
+	v1.GET("/orders", orderHandler.ListOrders)
+	v1.GET("/orders/:id", orderHandler.GetOrder)
+	v1.PATCH("/orders/:id", orderHandler.UpdateOrder)
+	v1.POST("/orders/:id/items", orderHandler.AddOrderItem)
+	v1.PATCH("/orders/:id/items/:itemId", orderHandler.UpdateOrderItem)
+	v1.DELETE("/orders/:id/items/:itemId", orderHandler.DeleteOrderItem)
+	v1.POST("/orders/:id/payments", orderHandler.CreatePayment)
+	v1.GET("/orders/:id/payments", orderHandler.ListPayments)
 }
 
 // Run starts the HTTP server and blocks until ctx is cancelled or Listen fails.
