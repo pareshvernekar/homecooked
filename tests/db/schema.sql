@@ -251,8 +251,10 @@ CREATE TABLE IF NOT EXISTS customer_order (
     expected_at         BIGINT NOT NULL,
     pickedup_at         BIGINT,
     status              VARCHAR(20) NOT NULL DEFAULT 'RECEIVED'
-        CHECK (status IN ('RECEIVED', 'IN_PROGRESS', 'COMPLETE', 'PICKEDUP')),
+        CONSTRAINT customer_order_status_check
+        CHECK (status IN ('RECEIVED', 'ACCEPTED', 'DECLINED', 'IN_PROGRESS', 'READY', 'PICKEDUP')),
     customization_text  TEXT,
+    refuse_reason       TEXT,
     total_override      NUMERIC(10,2)
         CHECK (total_override IS NULL OR total_override >= 0),
     frozen_total        NUMERIC(10,2),
