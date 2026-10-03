@@ -1,7 +1,8 @@
 # Session: order-lifecycle
 
 **Change:** `openspec/changes/order-lifecycle/`  
-**Status:** Artifacts complete. Apply before `order-notifications`.
+**Branch:** `feature/order-lifecycle`  
+**Status:** Artifacts complete; implementation in progress. Apply before `order-notifications`.
 
 ## Locked decisions
 
