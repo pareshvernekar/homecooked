@@ -131,8 +131,16 @@ func TestOrder_CreateLinesPayPickedUpFreeze(t *testing.T) {
 	assert.Equal(t, false, got["payment_received"])
 
 	// REQORDER004S02/S03: PICKEDUP while unpaid freezes total
-	picked := e.mustCall(t, http.StatusOK, http.MethodPatch, "/api/v1/orders/"+orderID,
-		map[string]interface{}{"status": "PICKEDUP"}).Data()
+	// REQLIFE005S01: status via PATCH is rejected
+	e.mustCall(t, http.StatusBadRequest, http.MethodPatch, "/api/v1/orders/"+orderID, map[string]interface{}{"status": "PICKEDUP"})
+	// REQLIFE001S02: cannot skip ahead
+	e.mustCall(t, http.StatusBadRequest, http.MethodPost, "/api/v1/orders/"+orderID+"/ready", nil)
+	e.mustCall(t, http.StatusBadRequest, http.MethodPost, "/api/v1/orders/"+orderID+"/pickup", nil)
+	// REQLIFE001S01
+	assert.Equal(t, "ACCEPTED", e.mustCall(t, http.StatusOK, http.MethodPost, "/api/v1/orders/"+orderID+"/accept", nil).Data()["status"])
+	assert.Equal(t, "IN_PROGRESS", e.mustCall(t, http.StatusOK, http.MethodPost, "/api/v1/orders/"+orderID+"/start-preparing", nil).Data()["status"])
+	assert.Equal(t, "READY", e.mustCall(t, http.StatusOK, http.MethodPost, "/api/v1/orders/"+orderID+"/ready", nil).Data()["status"])
+	picked := e.mustCall(t, http.StatusOK, http.MethodPost, "/api/v1/orders/"+orderID+"/pickup", nil).Data()
 	assert.Equal(t, "PICKEDUP", picked["status"])
 	assert.NotNil(t, picked["pickedup_at"])
 	assert.Equal(t, 30.0, picked["frozen_total"])
@@ -238,4 +246,42 @@ func TestOrder_CreateGatesAndList(t *testing.T) {
 	e.mustCall(t, http.StatusNotFound, http.MethodGet, "/api/v1/orders/does-not-exist", nil)
 	e.mustCall(t, http.StatusNotFound, http.MethodPost, "/api/v1/orders/does-not-exist/payments",
 		map[string]interface{}{"mode": "cash", "amount": 5})
+}
+
+// REQLIFE003S01, REQLIFE003S02, REQLIFE001S03, REQPAY001S04, REQOLINE001S06, REQORDER003S04
+func TestOrder_RefuseDeclined(t *testing.T) {
+	e := setupEnv(t)
+	m := seedPublishedDailyMenu(t, e, "daily")
+	expected := time.Now().Add(time.Hour).UnixMilli()
+	newOrder := func() string {
+		return e.mustCall(t, http.StatusCreated, http.MethodPost, "/api/v1/orders", map[string]interface{}{
+			"menu_id": m.menuID, "customer_name": "Asha", "customer_phone": "555", "expected_at": expected,
+		}).Data()["id"].(string)
+	}
+
+	// default reason, no body
+	id := newOrder()
+	d := e.mustCall(t, http.StatusOK, http.MethodPost, "/api/v1/orders/"+id+"/refuse", nil).Data()
+	assert.Equal(t, "DECLINED", d["status"])
+	assert.Equal(t, "No available slots", d["refuse_reason"])
+	got := e.mustCall(t, http.StatusOK, http.MethodGet, "/api/v1/orders/"+id, nil).Data()
+	assert.Equal(t, "No available slots", got["refuse_reason"])
+
+	// DECLINED is terminal and read-only
+	for _, action := range []string{"accept", "start-preparing", "ready", "pickup", "refuse"} {
+		e.mustCall(t, http.StatusBadRequest, http.MethodPost, "/api/v1/orders/"+id+"/"+action, nil)
+	}
+	e.mustCall(t, http.StatusBadRequest, http.MethodPost, "/api/v1/orders/"+id+"/payments",
+		map[string]interface{}{"mode": "cash", "amount": 5})
+	e.mustCall(t, http.StatusBadRequest, http.MethodPost, "/api/v1/orders/"+id+"/items",
+		map[string]interface{}{"menu_item_id": m.itemID, "quantity": 1})
+	e.mustCall(t, http.StatusBadRequest, http.MethodPatch, "/api/v1/orders/"+id, map[string]interface{}{"total_override": 1})
+
+	// custom reason
+	id2 := newOrder()
+	d = e.mustCall(t, http.StatusOK, http.MethodPost, "/api/v1/orders/"+id2+"/refuse",
+		map[string]interface{}{"reason": "Catering queue full"}).Data()
+	assert.Equal(t, "Catering queue full", d["refuse_reason"])
+
+	e.mustCall(t, http.StatusNotFound, http.MethodPost, "/api/v1/orders/does-not-exist/accept", nil)
 }

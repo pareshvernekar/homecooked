@@ -6,12 +6,16 @@ import (
 )
 
 // Order status constants.
-// REQORDER004
+// REQORDER004, REQLIFE001
 const (
 	OrderStatusReceived   = "RECEIVED"
+	OrderStatusAccepted   = "ACCEPTED"
+	OrderStatusDeclined   = "DECLINED"
 	OrderStatusInProgress = "IN_PROGRESS"
-	OrderStatusComplete   = "COMPLETE"
+	OrderStatusReady      = "READY"
 	OrderStatusPickedUp   = "PICKEDUP"
+
+	DefaultRefuseReason = "No available slots"
 )
 
 // Payment mode constants.
@@ -24,10 +28,21 @@ const (
 	PaymentModeVenmo  = "venmo"
 )
 
-// IsValidOrderStatus reports whether s is one of the four order statuses.
+// IsValidOrderStatus reports whether s is a supported order status.
 func IsValidOrderStatus(s string) bool {
 	switch s {
-	case OrderStatusReceived, OrderStatusInProgress, OrderStatusComplete, OrderStatusPickedUp:
+	case OrderStatusReceived, OrderStatusAccepted, OrderStatusDeclined,
+		OrderStatusInProgress, OrderStatusReady, OrderStatusPickedUp:
+		return true
+	}
+	return false
+}
+
+// IsUnfulfilledOrderStatus is true when live pricing and line edits apply.
+// REQORDER004, REQOLINE001
+func IsUnfulfilledOrderStatus(s string) bool {
+	switch s {
+	case OrderStatusReceived, OrderStatusAccepted, OrderStatusInProgress, OrderStatusReady:
 		return true
 	}
 	return false
@@ -56,6 +71,7 @@ type CustomerOrder struct {
 	PickedupAt        *int64   `db:"pickedup_at" json:"pickedup_at,omitempty"`
 	Status            string   `db:"status" json:"status"`
 	CustomizationText *string  `db:"customization_text" json:"customization_text,omitempty"`
+	RefuseReason      *string  `db:"refuse_reason" json:"refuse_reason,omitempty"`
 	TotalOverride     *float64 `db:"total_override" json:"total_override,omitempty"`
 	FrozenTotal       *float64 `db:"frozen_total" json:"frozen_total,omitempty"`
 	IsActive          bool     `db:"is_active" json:"is_active"`
@@ -189,6 +205,12 @@ type OrderUpdateRequest struct {
 	CustomizationText *string         `json:"customization_text,omitempty"`
 	TotalOverride     NullableFloat64 `json:"total_override"`
 	Status            *string         `json:"status,omitempty"`
+}
+
+// OrderRefuseRequest is the optional body of the refuse action.
+// REQLIFE003
+type OrderRefuseRequest struct {
+	Reason string `json:"reason,omitempty"`
 }
 
 // OrderSelectionInput selects a size option for one menu-item component.

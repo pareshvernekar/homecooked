@@ -40,7 +40,7 @@ type MenuReader interface {
 }
 
 // Service implements order intake, lines, pricing, and payments.
-// REQORDER001–REQORDER005, REQOLINE001–REQOLINE004, REQPAY001–REQPAY004
+// REQORDER001–REQORDER005, REQLIFE001–REQLIFE005, REQOLINE001–REQOLINE004, REQPAY001–REQPAY004
 type Service struct {
 	repo   Repository
 	menus  MenuReader
@@ -129,30 +129,37 @@ func (s *Service) Get(ctx context.Context, tenantID, id string) (*models.OrderDe
 	return s.buildDetail(ctx, tenantID, o)
 }
 
-// Update patches the order header; moving to PICKEDUP freezes the charged total.
-// REQORDER003, REQORDER004, REQORDER005, REQPAY003S02
+// Update patches the order header. Status is never changed here (lifecycle actions only).
+// REQORDER003, REQLIFE005, REQPAY003S02
 func (s *Service) Update(ctx context.Context, tenantID, id string, req *models.OrderUpdateRequest) (*models.OrderDetail, error) {
 	o, err := s.loadOrder(ctx, tenantID, id)
 	if err != nil {
 		return nil, err
 	}
 
-	var newStatus string
+	// REQLIFE005
 	if req.Status != nil {
-		newStatus = strings.ToUpper(strings.TrimSpace(*req.Status))
-		if !models.IsValidOrderStatus(newStatus) {
-			return nil, validation("status must be RECEIVED, IN_PROGRESS, COMPLETE, or PICKEDUP", "status")
-		}
+		return nil, validation("status cannot be changed via order update; use accept, refuse, start-preparing, ready, or pickup", "status")
 	}
 
-	if o.Status == models.OrderStatusPickedUp {
+	switch o.Status {
+	case models.OrderStatusDeclined:
+		// REQORDER003S04: DECLINED orders are read-only.
+		if req.TotalOverride.Set {
+			return nil, validation("total_override cannot be changed after DECLINED", "total_override")
+		}
+		if req.CustomerName != nil || req.CustomerPhone != nil || req.ReceivedAt != nil ||
+			req.ExpectedAt != nil || req.PickedupAt != nil || req.CustomizationText != nil {
+			return nil, validation("order is DECLINED; it can no longer be updated", "status")
+		}
+		return s.buildDetail(ctx, tenantID, o)
+	case models.OrderStatusPickedUp:
 		// REQORDER003: after PICKEDUP only pickedup_at may be corrected.
 		if req.TotalOverride.Set {
 			return nil, validation("total_override cannot be changed after PICKEDUP", "total_override")
 		}
 		if req.CustomerName != nil || req.CustomerPhone != nil || req.ReceivedAt != nil ||
-			req.ExpectedAt != nil || req.CustomizationText != nil ||
-			(req.Status != nil && newStatus != models.OrderStatusPickedUp) {
+			req.ExpectedAt != nil || req.CustomizationText != nil {
 			return nil, validation("order is PICKEDUP; only pickedup_at may be updated", "status")
 		}
 		if req.PickedupAt != nil {
@@ -202,31 +209,109 @@ func (s *Service) Update(ctx context.Context, tenantID, id string, req *models.O
 		}
 	}
 
-	var freeze []models.OrderLineFreeze
-	if req.Status != nil {
-		o.Status = newStatus
-		if newStatus == models.OrderStatusPickedUp {
-			// REQORDER004: freeze charged total and line amounts as resolved now.
-			lines, prices, err := s.loadLinesAndPrices(ctx, tenantID, o.ID)
-			if err != nil {
-				return nil, err
-			}
-			_, charged := applyPricing(o, lines, prices)
-			o.FrozenTotal = &charged
-			for _, l := range lines {
-				freeze = append(freeze, models.OrderLineFreeze{ItemID: l.ID, UnitPrice: l.UnitPrice, ExtendedAmount: l.ExtendedAmount})
-			}
-			if o.PickedupAt == nil {
-				now := s.nowMillis()
-				o.PickedupAt = &now
-			}
-		}
+	if err := s.repo.UpdateOrder(ctx, o, nil); err != nil {
+		return nil, s.mapOrderWriteErr(err, tenantID, id)
 	}
+	return s.buildDetail(ctx, tenantID, o)
+}
 
+// Accept moves RECEIVED → ACCEPTED.
+// REQLIFE002
+func (s *Service) Accept(ctx context.Context, tenantID, id string) (*models.OrderDetail, error) {
+	return s.transition(ctx, tenantID, id, models.OrderStatusReceived, models.OrderStatusAccepted, "accept")
+}
+
+// Refuse moves RECEIVED → DECLINED and stores the (trimmed or default) reason.
+// REQLIFE003
+func (s *Service) Refuse(ctx context.Context, tenantID, id, reason string) (*models.OrderDetail, error) {
+	o, err := s.loadOrder(ctx, tenantID, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := requireStatus(o, models.OrderStatusReceived, "refuse"); err != nil {
+		return nil, err
+	}
+	r := strings.TrimSpace(reason)
+	if r == "" {
+		r = models.DefaultRefuseReason
+	}
+	o.Status = models.OrderStatusDeclined
+	o.RefuseReason = &r
+	if err := s.repo.UpdateOrder(ctx, o, nil); err != nil {
+		return nil, s.mapOrderWriteErr(err, tenantID, id)
+	}
+	return s.buildDetail(ctx, tenantID, o)
+}
+
+// StartPreparing moves ACCEPTED → IN_PROGRESS.
+// REQLIFE004
+func (s *Service) StartPreparing(ctx context.Context, tenantID, id string) (*models.OrderDetail, error) {
+	return s.transition(ctx, tenantID, id, models.OrderStatusAccepted, models.OrderStatusInProgress, "start-preparing")
+}
+
+// Ready moves IN_PROGRESS → READY.
+// REQLIFE004
+func (s *Service) Ready(ctx context.Context, tenantID, id string) (*models.OrderDetail, error) {
+	return s.transition(ctx, tenantID, id, models.OrderStatusInProgress, models.OrderStatusReady, "ready")
+}
+
+// Pickup moves READY → PICKEDUP, freezing the charged total and line amounts as resolved now.
+// REQLIFE004, REQORDER004
+func (s *Service) Pickup(ctx context.Context, tenantID, id string) (*models.OrderDetail, error) {
+	o, err := s.loadOrder(ctx, tenantID, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := requireStatus(o, models.OrderStatusReady, "pickup"); err != nil {
+		return nil, err
+	}
+	lines, prices, err := s.loadLinesAndPrices(ctx, tenantID, o.ID)
+	if err != nil {
+		return nil, err
+	}
+	_, charged := applyPricing(o, lines, prices)
+	o.FrozenTotal = &charged
+	freeze := make([]models.OrderLineFreeze, 0, len(lines))
+	for _, l := range lines {
+		freeze = append(freeze, models.OrderLineFreeze{ItemID: l.ID, UnitPrice: l.UnitPrice, ExtendedAmount: l.ExtendedAmount})
+	}
+	if o.PickedupAt == nil {
+		now := s.nowMillis()
+		o.PickedupAt = &now
+	}
+	o.Status = models.OrderStatusPickedUp
 	if err := s.repo.UpdateOrder(ctx, o, freeze); err != nil {
 		return nil, s.mapOrderWriteErr(err, tenantID, id)
 	}
 	return s.buildDetail(ctx, tenantID, o)
+}
+
+// transition performs a simple single-edge status change.
+// REQLIFE001
+func (s *Service) transition(ctx context.Context, tenantID, id, from, to, action string) (*models.OrderDetail, error) {
+	o, err := s.loadOrder(ctx, tenantID, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := requireStatus(o, from, action); err != nil {
+		return nil, err
+	}
+	o.Status = to
+	if err := s.repo.UpdateOrder(ctx, o, nil); err != nil {
+		return nil, s.mapOrderWriteErr(err, tenantID, id)
+	}
+	return s.buildDetail(ctx, tenantID, o)
+}
+
+// requireStatus rejects an action unless the order is currently in the required status.
+// REQLIFE001
+func requireStatus(o *models.CustomerOrder, required, action string) error {
+	if o.Status != required {
+		return apperrors.CreateValidationError(
+			fmt.Sprintf("cannot %s an order with status %s; requires %s", action, o.Status, required),
+			map[string]interface{}{"order_id": o.ID, "status": o.Status, "action": action})
+	}
+	return nil
 }
 
 // AddLine adds a line with per-component size selections.
@@ -342,11 +427,15 @@ func (s *Service) RemoveLine(ctx context.Context, tenantID, orderID, itemID stri
 	return nil
 }
 
-// RecordPayment records a payment on an active order in any status.
-// REQPAY001
+// RecordPayment records a payment on an active order in any status except DECLINED.
+// REQPAY001, REQPAY001S04
 func (s *Service) RecordPayment(ctx context.Context, tenantID, orderID string, req *models.PaymentCreateRequest) (*models.OrderPayment, error) {
-	if _, err := s.loadOrder(ctx, tenantID, orderID); err != nil {
+	o, err := s.loadOrder(ctx, tenantID, orderID)
+	if err != nil {
 		return nil, err
+	}
+	if o.Status == models.OrderStatusDeclined {
+		return nil, apperrors.CreateValidationError("order is DECLINED; payments cannot be recorded", map[string]interface{}{"order_id": o.ID})
 	}
 	mode := strings.ToLower(strings.TrimSpace(req.Mode))
 	if !models.IsValidPaymentMode(mode) {
@@ -479,9 +568,10 @@ func (s *Service) resolveSingleLine(ctx context.Context, tenantID string, o *mod
 	return &lines[0], nil
 }
 
+// REQOLINE001, REQOLINE004
 func requireUnfulfilled(o *models.CustomerOrder) error {
-	if o.Status == models.OrderStatusPickedUp {
-		return apperrors.CreateValidationError("order is PICKEDUP; lines can no longer be changed", map[string]interface{}{"order_id": o.ID})
+	if !models.IsUnfulfilledOrderStatus(o.Status) {
+		return apperrors.CreateValidationError(fmt.Sprintf("order is %s; lines can no longer be changed", o.Status), map[string]interface{}{"order_id": o.ID})
 	}
 	return nil
 }

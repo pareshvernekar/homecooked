@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
 	"time"
 
@@ -17,6 +19,11 @@ type OrderService interface {
 	List(ctx context.Context, tenantID string) ([]*models.CustomerOrder, error)
 	Get(ctx context.Context, tenantID, id string) (*models.OrderDetail, error)
 	Update(ctx context.Context, tenantID, id string, req *models.OrderUpdateRequest) (*models.OrderDetail, error)
+	Accept(ctx context.Context, tenantID, id string) (*models.OrderDetail, error)
+	Refuse(ctx context.Context, tenantID, id, reason string) (*models.OrderDetail, error)
+	StartPreparing(ctx context.Context, tenantID, id string) (*models.OrderDetail, error)
+	Ready(ctx context.Context, tenantID, id string) (*models.OrderDetail, error)
+	Pickup(ctx context.Context, tenantID, id string) (*models.OrderDetail, error)
 	AddLine(ctx context.Context, tenantID, orderID string, req *models.OrderLineCreateRequest) (*models.OrderItem, error)
 	UpdateLine(ctx context.Context, tenantID, orderID, itemID string, req *models.OrderLineUpdateRequest) (*models.OrderItem, error)
 	RemoveLine(ctx context.Context, tenantID, orderID, itemID string) error
@@ -25,7 +32,7 @@ type OrderService interface {
 }
 
 // OrderHandler serves /api/v1/orders.
-// REQORDER001–REQORDER005, REQOLINE001–REQOLINE004, REQPAY001–REQPAY004
+// REQORDER001–REQORDER005, REQLIFE001–REQLIFE005, REQOLINE001–REQOLINE004, REQPAY001–REQPAY004
 type OrderHandler struct {
 	orders OrderService
 	Logger *logger.Logger
@@ -96,6 +103,59 @@ func (h *OrderHandler) UpdateOrder(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Order updated successfully", "data": o})
+}
+
+// AcceptOrder POST /orders/:id/accept
+// REQLIFE002
+func (h *OrderHandler) AcceptOrder(c *gin.Context) {
+	h.lifecycle(c, "Order accepted successfully", "Failed to accept order", h.orders.Accept)
+}
+
+// RefuseOrder POST /orders/:id/refuse (optional body {"reason": "..."})
+// REQLIFE003
+func (h *OrderHandler) RefuseOrder(c *gin.Context) {
+	var req models.OrderRefuseRequest
+	if c.Request.Body != nil && c.Request.ContentLength != 0 {
+		if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+			badRequest(c, err)
+			return
+		}
+	}
+	tenantID := c.GetString(middleware.TenantIDKey)
+	o, err := h.orders.Refuse(c.Request.Context(), tenantID, c.Param("id"), req.Reason)
+	if err != nil {
+		writeServiceError(c, err, "Failed to refuse order")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Order refused successfully", "data": o})
+}
+
+// StartPreparingOrder POST /orders/:id/start-preparing
+// REQLIFE004
+func (h *OrderHandler) StartPreparingOrder(c *gin.Context) {
+	h.lifecycle(c, "Order preparation started", "Failed to start preparing order", h.orders.StartPreparing)
+}
+
+// ReadyOrder POST /orders/:id/ready
+// REQLIFE004
+func (h *OrderHandler) ReadyOrder(c *gin.Context) {
+	h.lifecycle(c, "Order marked ready", "Failed to mark order ready", h.orders.Ready)
+}
+
+// PickupOrder POST /orders/:id/pickup
+// REQLIFE004
+func (h *OrderHandler) PickupOrder(c *gin.Context) {
+	h.lifecycle(c, "Order picked up successfully", "Failed to pick up order", h.orders.Pickup)
+}
+
+func (h *OrderHandler) lifecycle(c *gin.Context, okMsg, failMsg string, fn func(ctx context.Context, tenantID, id string) (*models.OrderDetail, error)) {
+	tenantID := c.GetString(middleware.TenantIDKey)
+	o, err := fn(c.Request.Context(), tenantID, c.Param("id"))
+	if err != nil {
+		writeServiceError(c, err, failMsg)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": okMsg, "data": o})
 }
 
 // AddOrderItem POST /orders/:id/items

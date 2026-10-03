@@ -1,0 +1,50 @@
+---
+description: Every OpenSpec change gets its own git feature branch
+alwaysApply: true
+---
+
+# OpenSpec ↔ Git branch
+
+Each active OpenSpec change MUST live on its own git branch.
+
+## Branch naming
+
+`feature/<change-name>`
+
+Examples:
+
+- change `order-lifecycle` → `feature/order-lifecycle`
+- change `order-notifications` → `feature/order-notifications`
+
+## When proposing (`/opsx:propose` or openspec-propose)
+
+Before or immediately after `openspec new change "<name>"`:
+
+1. Ensure the working tree is clean enough to switch branches (stash or commit unrelated WIP).
+2. Start from the appropriate base (usually `main`, or the prerequisite change’s branch if stacked).
+3. Create and check out `feature/<change-name>` if it does not already exist:
+   ```bash
+   git checkout -b feature/<change-name>
+   ```
+4. Create OpenSpec artifacts only on that branch.
+5. Do not put multiple active changes’ artifact trees on the same branch.
+
+## When applying (`/opsx:apply` or openspec-apply-change)
+
+1. Select the change name.
+2. Check out `feature/<change-name>` before implementing tasks.
+3. If the branch is missing, create it from the correct base and move/cherry-pick the change directory onto it before coding.
+4. Announce: `Using change: <name> on branch feature/<name>`.
+
+## Stacked / dependent changes
+
+If change B depends on change A:
+
+- Base `feature/<B>` on `feature/<A>` (not only on `main`).
+- Keep A’s artifacts on A’s branch; B’s branch may contain A’s commits via merge/rebase history.
+- Do not implement B on A’s branch.
+
+## Do not
+
+- Create OpenSpec changes on an unrelated feature branch (e.g. proposing on `feature/order-intake` when the change is `order-lifecycle`).
+- Mix two active `openspec/changes/<name>/` directories as the primary work of one branch unless B is intentionally stacked on A and you are checked out to B.
