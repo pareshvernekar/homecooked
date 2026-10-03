@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	apperrors "github.com/pareshvernekar/homecooked/internal/errors"
 	"github.com/pareshvernekar/homecooked/internal/logger"
 	"github.com/pareshvernekar/homecooked/internal/models"
@@ -16,10 +18,12 @@ import (
 
 // Repository port for orders, lines, payments, and menu lookups.
 type Repository interface {
-	CreateOrder(ctx context.Context, o *models.CustomerOrder) error
+	// CreateOrder and UpdateOrder insert the optional outbox row in the same transaction as the
+	// order write (REQNOTIF002).
+	CreateOrder(ctx context.Context, o *models.CustomerOrder, outbox *models.NotificationOutbox) error
 	ListOrders(ctx context.Context) ([]*models.CustomerOrder, error)
 	GetActiveOrder(ctx context.Context, id string) (*models.CustomerOrder, error)
-	UpdateOrder(ctx context.Context, o *models.CustomerOrder, freeze []models.OrderLineFreeze) error
+	UpdateOrder(ctx context.Context, o *models.CustomerOrder, freeze []models.OrderLineFreeze, outbox *models.NotificationOutbox) error
 
 	InsertLine(ctx context.Context, item *models.OrderItem) error
 	UpdateLine(ctx context.Context, item *models.OrderItem, replaceSelections bool) error
@@ -39,18 +43,53 @@ type MenuReader interface {
 	GetActiveMenu(ctx context.Context, tenantID, id string) (*models.Menu, error)
 }
 
+// OutboxBuilder builds the notification outbox row for an order lifecycle event.
+// It returns nil (and no error) when nothing should be enqueued.
+// REQNOTIF002
+type OutboxBuilder interface {
+	Build(ctx context.Context, tenantID, eventType string, o *models.CustomerOrder) (*models.NotificationOutbox, error)
+}
+
+// Option customises a Service.
+type Option func(*Service)
+
+// WithNotifications enables transactional outbox enqueue for order lifecycle events.
+// REQNOTIF002
+func WithNotifications(b OutboxBuilder) Option {
+	return func(s *Service) { s.outbox = b }
+}
+
 // Service implements order intake, lines, pricing, and payments.
-// REQORDER001–REQORDER005, REQLIFE001–REQLIFE005, REQOLINE001–REQOLINE004, REQPAY001–REQPAY004
+// REQORDER001–REQORDER005, REQLIFE001–REQLIFE005, REQOLINE001–REQOLINE004, REQPAY001–REQPAY004,
+// REQNOTIF002
 type Service struct {
 	repo   Repository
 	menus  MenuReader
 	logger *logger.Logger
 	now    func() time.Time
+	outbox OutboxBuilder // optional; nil disables notification enqueue
 }
 
 // NewService constructs an order service.
-func NewService(repo Repository, menus MenuReader, l *logger.Logger) *Service {
-	return &Service{repo: repo, menus: menus, logger: l, now: time.Now}
+func NewService(repo Repository, menus MenuReader, l *logger.Logger, opts ...Option) *Service {
+	s := &Service{repo: repo, menus: menus, logger: l, now: time.Now}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
+}
+
+// buildOutbox returns the outbox row for event, or nil when notifications are disabled or
+// the event has no recipient. Failure to build aborts the order write (REQNOTIF002).
+func (s *Service) buildOutbox(ctx context.Context, tenantID, event string, o *models.CustomerOrder) (*models.NotificationOutbox, error) {
+	if s.outbox == nil || event == "" {
+		return nil, nil
+	}
+	ob, err := s.outbox.Build(ctx, tenantID, event, o)
+	if err != nil {
+		return nil, apperrors.CreateDatabaseError("Failed to prepare order notification", err, tenantID)
+	}
+	return ob, nil
 }
 
 func (s *Service) nowMillis() int64 { return s.now().UTC().UnixMilli() }
@@ -63,7 +102,7 @@ func validation(msg string, field string) error {
 }
 
 // Create creates an order against an active published daily|catering menu.
-// REQORDER001, REQORDER004, REQORDER005
+// REQORDER001, REQORDER004, REQORDER005, REQNOTIF002
 func (s *Service) Create(ctx context.Context, tenantID string, req *models.OrderCreateRequest) (*models.CustomerOrder, error) {
 	name := strings.TrimSpace(req.CustomerName)
 	phone := strings.TrimSpace(req.CustomerPhone)
@@ -100,7 +139,13 @@ func (s *Service) Create(ctx context.Context, tenantID string, req *models.Order
 		ReceivedAt: received, ExpectedAt: *req.ExpectedAt,
 		Status: models.OrderStatusReceived, CustomizationText: textPtr(req.CustomizationText),
 	}
-	if err := s.repo.CreateOrder(ctx, o); err != nil {
+	o.ID = uuid.New().String() // known up front so the outbox row can reference it
+	// REQNOTIF002S01, REQNOTIF002S02: cook alert only when cook_admin_phone is set.
+	ob, err := s.buildOutbox(ctx, tenantID, models.EventOrderCreated, o)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.repo.CreateOrder(ctx, o, ob); err != nil {
 		return nil, apperrors.CreateDatabaseError("Failed to create order", err, tenantID)
 	}
 	return o, nil
@@ -164,7 +209,7 @@ func (s *Service) Update(ctx context.Context, tenantID, id string, req *models.O
 		}
 		if req.PickedupAt != nil {
 			o.PickedupAt = req.PickedupAt
-			if err := s.repo.UpdateOrder(ctx, o, nil); err != nil {
+			if err := s.repo.UpdateOrder(ctx, o, nil, nil); err != nil {
 				return nil, s.mapOrderWriteErr(err, tenantID, id)
 			}
 		}
@@ -209,20 +254,20 @@ func (s *Service) Update(ctx context.Context, tenantID, id string, req *models.O
 		}
 	}
 
-	if err := s.repo.UpdateOrder(ctx, o, nil); err != nil {
+	if err := s.repo.UpdateOrder(ctx, o, nil, nil); err != nil {
 		return nil, s.mapOrderWriteErr(err, tenantID, id)
 	}
 	return s.buildDetail(ctx, tenantID, o)
 }
 
 // Accept moves RECEIVED → ACCEPTED.
-// REQLIFE002
+// REQLIFE002, REQNOTIF002S03
 func (s *Service) Accept(ctx context.Context, tenantID, id string) (*models.OrderDetail, error) {
-	return s.transition(ctx, tenantID, id, models.OrderStatusReceived, models.OrderStatusAccepted, "accept")
+	return s.transition(ctx, tenantID, id, models.OrderStatusReceived, models.OrderStatusAccepted, "accept", models.EventOrderAccepted)
 }
 
 // Refuse moves RECEIVED → DECLINED and stores the (trimmed or default) reason.
-// REQLIFE003
+// REQLIFE003, REQNOTIF002S04
 func (s *Service) Refuse(ctx context.Context, tenantID, id, reason string) (*models.OrderDetail, error) {
 	o, err := s.loadOrder(ctx, tenantID, id)
 	if err != nil {
@@ -237,26 +282,30 @@ func (s *Service) Refuse(ctx context.Context, tenantID, id, reason string) (*mod
 	}
 	o.Status = models.OrderStatusDeclined
 	o.RefuseReason = &r
-	if err := s.repo.UpdateOrder(ctx, o, nil); err != nil {
+	ob, err := s.buildOutbox(ctx, tenantID, models.EventOrderDeclined, o) // body includes the reason
+	if err != nil {
+		return nil, err
+	}
+	if err := s.repo.UpdateOrder(ctx, o, nil, ob); err != nil {
 		return nil, s.mapOrderWriteErr(err, tenantID, id)
 	}
 	return s.buildDetail(ctx, tenantID, o)
 }
 
 // StartPreparing moves ACCEPTED → IN_PROGRESS.
-// REQLIFE004
+// REQLIFE004, REQNOTIF002S06 (no notification on preparing)
 func (s *Service) StartPreparing(ctx context.Context, tenantID, id string) (*models.OrderDetail, error) {
-	return s.transition(ctx, tenantID, id, models.OrderStatusAccepted, models.OrderStatusInProgress, "start-preparing")
+	return s.transition(ctx, tenantID, id, models.OrderStatusAccepted, models.OrderStatusInProgress, "start-preparing", "")
 }
 
 // Ready moves IN_PROGRESS → READY.
-// REQLIFE004
+// REQLIFE004, REQNOTIF002S05
 func (s *Service) Ready(ctx context.Context, tenantID, id string) (*models.OrderDetail, error) {
-	return s.transition(ctx, tenantID, id, models.OrderStatusInProgress, models.OrderStatusReady, "ready")
+	return s.transition(ctx, tenantID, id, models.OrderStatusInProgress, models.OrderStatusReady, "ready", models.EventOrderReady)
 }
 
 // Pickup moves READY → PICKEDUP, freezing the charged total and line amounts as resolved now.
-// REQLIFE004, REQORDER004
+// REQLIFE004, REQORDER004, REQNOTIF002S05
 func (s *Service) Pickup(ctx context.Context, tenantID, id string) (*models.OrderDetail, error) {
 	o, err := s.loadOrder(ctx, tenantID, id)
 	if err != nil {
@@ -280,15 +329,20 @@ func (s *Service) Pickup(ctx context.Context, tenantID, id string) (*models.Orde
 		o.PickedupAt = &now
 	}
 	o.Status = models.OrderStatusPickedUp
-	if err := s.repo.UpdateOrder(ctx, o, freeze); err != nil {
+	ob, err := s.buildOutbox(ctx, tenantID, models.EventOrderPickedUp, o)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.repo.UpdateOrder(ctx, o, freeze, ob); err != nil {
 		return nil, s.mapOrderWriteErr(err, tenantID, id)
 	}
 	return s.buildDetail(ctx, tenantID, o)
 }
 
-// transition performs a simple single-edge status change.
-// REQLIFE001
-func (s *Service) transition(ctx context.Context, tenantID, id, from, to, action string) (*models.OrderDetail, error) {
+// transition performs a simple single-edge status change. A non-empty event enqueues that
+// notification in the same transaction as the status write.
+// REQLIFE001, REQNOTIF002
+func (s *Service) transition(ctx context.Context, tenantID, id, from, to, action, event string) (*models.OrderDetail, error) {
 	o, err := s.loadOrder(ctx, tenantID, id)
 	if err != nil {
 		return nil, err
@@ -297,7 +351,11 @@ func (s *Service) transition(ctx context.Context, tenantID, id, from, to, action
 		return nil, err
 	}
 	o.Status = to
-	if err := s.repo.UpdateOrder(ctx, o, nil); err != nil {
+	ob, err := s.buildOutbox(ctx, tenantID, event, o)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.repo.UpdateOrder(ctx, o, nil, ob); err != nil {
 		return nil, s.mapOrderWriteErr(err, tenantID, id)
 	}
 	return s.buildDetail(ctx, tenantID, o)

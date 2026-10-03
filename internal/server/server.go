@@ -55,6 +55,7 @@ func SetupRoutes(
 	sizeUnitHandler *handlers.SizeUnitHandler,
 	menuHandler *handlers.MenuHandler,
 	orderHandler *handlers.OrderHandler,
+	notificationHandler *handlers.NotificationHandler,
 ) {
 	v1 := router.Group("/api/v1")
 
@@ -100,6 +101,10 @@ func SetupRoutes(
 	v1.DELETE("/orders/:id/items/:itemId", orderHandler.DeleteOrderItem)
 	v1.POST("/orders/:id/payments", orderHandler.CreatePayment)
 	v1.GET("/orders/:id/payments", orderHandler.ListPayments)
+	v1.GET("/orders/:id/notifications", notificationHandler.ListOrderNotifications) // REQNOTIF005
+
+	v1.GET("/tenant/settings", notificationHandler.GetTenantSettings)    // REQNOTIF001
+	v1.PUT("/tenant/settings", notificationHandler.UpdateTenantSettings) // REQNOTIF001
 }
 
 // Run starts the HTTP server and blocks until ctx is cancelled or Listen fails.

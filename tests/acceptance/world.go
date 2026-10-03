@@ -44,6 +44,8 @@ type apiWorld struct {
 	lastSizeOptionID  string
 	lastOrderID       string
 	lastOrderItemID   string
+
+	rememberedNotificationCount int
 }
 
 func newAPIWorld() *apiWorld {
@@ -81,6 +83,7 @@ func (w *apiWorld) resetScenario() {
 	w.lastSizeOptionID = ""
 	w.lastOrderID = ""
 	w.lastOrderItemID = ""
+	w.rememberedNotificationCount = 0
 }
 
 func (w *apiWorld) uniqueName(prefix string) string {
@@ -627,6 +630,110 @@ func (w *apiWorld) markOrderPickedUp() error {
 		return fmt.Errorf("no created order id")
 	}
 	return w.doRequest(http.MethodPost, "/api/v1/orders/"+w.lastOrderID+"/pickup", "")
+}
+
+func (w *apiWorld) refuseOrder(reason string) error {
+	if w.lastOrderID == "" {
+		return fmt.Errorf("no created order id")
+	}
+	body := fmt.Sprintf(`{"reason":%q}`, reason)
+	return w.doRequest(http.MethodPost, "/api/v1/orders/"+w.lastOrderID+"/refuse", body)
+}
+
+// setCookAdminPhone PUT /tenant/settings. Empty phone clears (REQNOTIF001).
+func (w *apiWorld) setCookAdminPhone(phone string) error {
+	var body string
+	if phone == "" {
+		body = `{"cook_admin_phone":null}`
+	} else {
+		body = fmt.Sprintf(`{"cook_admin_phone":%q}`, phone)
+	}
+	return w.doRequest(http.MethodPut, "/api/v1/tenant/settings", body)
+}
+
+func (w *apiWorld) getCookAdminPhone() (string, bool, error) {
+	if err := w.doRequest(http.MethodGet, "/api/v1/tenant/settings", ""); err != nil {
+		return "", false, err
+	}
+	data, err := w.dataObjectFromLastBody()
+	if err != nil {
+		return "", false, err
+	}
+	v, ok := data["cook_admin_phone"]
+	if !ok || v == nil {
+		return "", false, nil
+	}
+	s, ok := v.(string)
+	if !ok {
+		return "", false, fmt.Errorf("cook_admin_phone not a string: %s", string(w.lastBody))
+	}
+	return s, true, nil
+}
+
+func (w *apiWorld) listOrderNotifications(orderID string) error {
+	if orderID == "" {
+		return fmt.Errorf("no order id")
+	}
+	return w.doRequest(http.MethodGet, "/api/v1/orders/"+orderID+"/notifications", "")
+}
+
+func (w *apiWorld) notificationRowsFromLastBody() ([]map[string]interface{}, error) {
+	var payload map[string]interface{}
+	if err := json.Unmarshal(w.lastBody, &payload); err != nil {
+		return nil, err
+	}
+	raw, ok := payload["data"].([]interface{})
+	if !ok {
+		if payload["data"] == nil {
+			return []map[string]interface{}{}, nil
+		}
+		return nil, fmt.Errorf("data is not a list: %s", string(w.lastBody))
+	}
+	out := make([]map[string]interface{}, 0, len(raw))
+	for _, item := range raw {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("notification row is not an object: %s", string(w.lastBody))
+		}
+		out = append(out, m)
+	}
+	return out, nil
+}
+
+func (w *apiWorld) notificationByEvent(event string) (map[string]interface{}, error) {
+	rows, err := w.notificationRowsFromLastBody()
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		if r["event_type"] == event {
+			return r, nil
+		}
+	}
+	return nil, fmt.Errorf("no notification for event %q in %s", event, string(w.lastBody))
+}
+
+func (w *apiWorld) waitForNotificationStatus(event, status string) error {
+	if w.lastOrderID == "" {
+		return fmt.Errorf("no created order id")
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		if err := w.listOrderNotifications(w.lastOrderID); err != nil {
+			return err
+		}
+		row, err := w.notificationByEvent(event)
+		if err != nil {
+			lastErr = err
+		} else if got, _ := row["status"].(string); got == status {
+			return nil
+		} else {
+			lastErr = fmt.Errorf("event %q status=%v want %q", event, row["status"], status)
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	return fmt.Errorf("timed out waiting for %s status %q: %v", event, status, lastErr)
 }
 
 func (w *apiWorld) dataObjectFromLastBody() (map[string]interface{}, error) {
