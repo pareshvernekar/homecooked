@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/cucumber/godog"
 	"github.com/google/uuid"
@@ -306,6 +307,143 @@ func (w *apiWorld) iMarkTheOrderAsPICKEDUP() error {
 	return w.markOrderPickedUp()
 }
 
+func (w *apiWorld) iRefuseTheOrderWithReason(reason string) error {
+	return w.refuseOrder(reason)
+}
+
+func (w *apiWorld) theCookAdminPhoneIsCleared() error {
+	if err := w.setCookAdminPhone(""); err != nil {
+		return err
+	}
+	if w.lastStatus != http.StatusOK {
+		return fmt.Errorf("clear cook admin phone expected 200, got %d body=%s", w.lastStatus, string(w.lastBody))
+	}
+	return nil
+}
+
+func (w *apiWorld) theCookAdminPhoneIs(phone string) error {
+	if err := w.setCookAdminPhone(phone); err != nil {
+		return err
+	}
+	if w.lastStatus != http.StatusOK {
+		return fmt.Errorf("set cook admin phone expected 200, got %d body=%s", w.lastStatus, string(w.lastBody))
+	}
+	return nil
+}
+
+func (w *apiWorld) iSetTheCookAdminPhoneTo(phone string) error {
+	return w.setCookAdminPhone(phone)
+}
+
+func (w *apiWorld) iClearTheCookAdminPhone() error {
+	return w.setCookAdminPhone("")
+}
+
+func (w *apiWorld) theCookAdminPhoneShouldBe(phone string) error {
+	got, ok, err := w.getCookAdminPhone()
+	if err != nil {
+		return err
+	}
+	if !ok || got != phone {
+		return fmt.Errorf("expected cook_admin_phone %q, got present=%v value=%q body=%s", phone, ok, got, string(w.lastBody))
+	}
+	return nil
+}
+
+func (w *apiWorld) theCookAdminPhoneShouldBeEmpty() error {
+	got, ok, err := w.getCookAdminPhone()
+	if err != nil {
+		return err
+	}
+	if ok && got != "" {
+		return fmt.Errorf("expected cook_admin_phone empty/null, got %q body=%s", got, string(w.lastBody))
+	}
+	return nil
+}
+
+func (w *apiWorld) iListNotificationsForTheCreatedOrder() error {
+	return w.listOrderNotifications(w.lastOrderID)
+}
+
+func (w *apiWorld) iListNotificationsForOrder(orderID string) error {
+	return w.listOrderNotifications(orderID)
+}
+
+func (w *apiWorld) theOrderShouldHaveNNotifications(n int) error {
+	rows, err := w.notificationRowsFromLastBody()
+	if err != nil {
+		return err
+	}
+	if len(rows) != n {
+		return fmt.Errorf("expected %d notifications, got %d body=%s", n, len(rows), string(w.lastBody))
+	}
+	return nil
+}
+
+func (w *apiWorld) theOrderShouldHaveANotificationForEventTo(event, phone string) error {
+	row, err := w.notificationByEvent(event)
+	if err != nil {
+		return err
+	}
+	got, _ := row["recipient_phone"].(string)
+	if got != phone {
+		return fmt.Errorf("event %q recipient=%q want %q body=%s", event, got, phone, string(w.lastBody))
+	}
+	return nil
+}
+
+func (w *apiWorld) theOrderShouldNotHaveANotificationForEvent(event string) error {
+	rows, err := w.notificationRowsFromLastBody()
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		if r["event_type"] == event {
+			return fmt.Errorf("unexpected notification for event %q body=%s", event, string(w.lastBody))
+		}
+	}
+	return nil
+}
+
+func (w *apiWorld) theNotificationBodyShouldContain(event, fragment string) error {
+	row, err := w.notificationByEvent(event)
+	if err != nil {
+		return err
+	}
+	body, _ := row["body"].(string)
+	if !strings.Contains(body, fragment) {
+		return fmt.Errorf("event %q body %q does not contain %q", event, body, fragment)
+	}
+	return nil
+}
+
+func (w *apiWorld) iRememberTheNotificationCountForTheCreatedOrder() error {
+	if err := w.listOrderNotifications(w.lastOrderID); err != nil {
+		return err
+	}
+	rows, err := w.notificationRowsFromLastBody()
+	if err != nil {
+		return err
+	}
+	w.rememberedNotificationCount = len(rows)
+	return nil
+}
+
+func (w *apiWorld) theOrderNotificationCountShouldBeUnchanged() error {
+	rows, err := w.notificationRowsFromLastBody()
+	if err != nil {
+		return err
+	}
+	if len(rows) != w.rememberedNotificationCount {
+		return fmt.Errorf("expected notification count %d, got %d body=%s", w.rememberedNotificationCount, len(rows), string(w.lastBody))
+	}
+	return nil
+}
+
+func (w *apiWorld) iWaitUntilTheNotificationStatusIs(event, status string) error {
+	return w.waitForNotificationStatus(event, status)
+}
+
 func (w *apiWorld) theOrderStatusShouldBe(status string) error {
 	got, err := w.orderStringField("status")
 	if err != nil {
@@ -439,4 +577,22 @@ func InitializeScenario(ctx *godog.ScenarioContext, w *apiWorld) {
 	ctx.Step(`^the order payment_received should be (true|false)$`, w.theOrderPaymentReceivedShouldBe)
 	ctx.Step(`^the order line unit_price should be (\d+(?:\.\d+)?)$`, w.theOrderLineUnitPriceShouldBe)
 	ctx.Step(`^the order line extended_amount should be (\d+(?:\.\d+)?)$`, w.theOrderLineExtendedAmountShouldBe)
+
+	// Order notifications acceptance (REQNOTIF001–REQNOTIF005)
+	ctx.Step(`^the cook admin phone is cleared$`, w.theCookAdminPhoneIsCleared)
+	ctx.Step(`^the cook admin phone is "([^"]*)"$`, w.theCookAdminPhoneIs)
+	ctx.Step(`^I set the cook admin phone to "([^"]*)"$`, w.iSetTheCookAdminPhoneTo)
+	ctx.Step(`^I clear the cook admin phone$`, w.iClearTheCookAdminPhone)
+	ctx.Step(`^the cook admin phone should be "([^"]*)"$`, w.theCookAdminPhoneShouldBe)
+	ctx.Step(`^the cook admin phone should be empty$`, w.theCookAdminPhoneShouldBeEmpty)
+	ctx.Step(`^I refuse the order with reason "([^"]*)"$`, w.iRefuseTheOrderWithReason)
+	ctx.Step(`^I list notifications for the created order$`, w.iListNotificationsForTheCreatedOrder)
+	ctx.Step(`^I list notifications for order "([^"]*)"$`, w.iListNotificationsForOrder)
+	ctx.Step(`^the order should have (\d+) notifications?$`, w.theOrderShouldHaveNNotifications)
+	ctx.Step(`^the order should have a notification for event "([^"]*)" to "([^"]*)"$`, w.theOrderShouldHaveANotificationForEventTo)
+	ctx.Step(`^the order should not have a notification for event "([^"]*)"$`, w.theOrderShouldNotHaveANotificationForEvent)
+	ctx.Step(`^the "([^"]*)" notification body should contain "([^"]*)"$`, w.theNotificationBodyShouldContain)
+	ctx.Step(`^I remember the notification count for the created order$`, w.iRememberTheNotificationCountForTheCreatedOrder)
+	ctx.Step(`^the order notification count should be unchanged$`, w.theOrderNotificationCountShouldBeUnchanged)
+	ctx.Step(`^I wait until the "([^"]*)" notification status is "([^"]*)"$`, w.iWaitUntilTheNotificationStatusIs)
 }

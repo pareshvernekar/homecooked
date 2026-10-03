@@ -16,6 +16,7 @@ import (
 	"github.com/pareshvernekar/homecooked/internal/repository"
 	"github.com/pareshvernekar/homecooked/internal/services/menu"
 	"github.com/pareshvernekar/homecooked/internal/services/menuitem"
+	"github.com/pareshvernekar/homecooked/internal/services/notification"
 	"github.com/pareshvernekar/homecooked/internal/services/order"
 	"github.com/pareshvernekar/homecooked/internal/services/sizeunit"
 	testdb "github.com/pareshvernekar/homecooked/tests/db"
@@ -25,6 +26,7 @@ import (
 type tenantEnv struct {
 	tenantID  string
 	orderRepo *repository.PostgreSQLOrderRepository
+	notifRepo *repository.PostgreSQLNotificationRepository
 	menuSvc   *menu.Service
 	itemSvc   *menuitem.Service
 	svc       *order.Service
@@ -75,10 +77,11 @@ func newTenant(t *testing.T, db *sqlx.DB, tenantID string) *tenantEnv {
 	menuSvc := menu.NewService(menuRepo, itemRepo, l)
 	itemSvc := menuitem.NewService(itemRepo, menuSvc, sizeSvc, l)
 	orderRepo := repository.NewOrderRepository(db, l, tenantID)
+	notifRepo := repository.NewNotificationRepository(db, l)
 
 	e := &tenantEnv{
-		tenantID: tenantID, orderRepo: orderRepo, menuSvc: menuSvc, itemSvc: itemSvc,
-		svc: order.NewService(orderRepo, menuSvc, l),
+		tenantID: tenantID, orderRepo: orderRepo, notifRepo: notifRepo, menuSvc: menuSvc, itemSvc: itemSvc,
+		svc: order.NewService(orderRepo, menuSvc, l, order.WithNotifications(notification.NewBuilder(notifRepo, l))),
 	}
 
 	date := "2026-11-10"

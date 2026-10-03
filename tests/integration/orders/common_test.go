@@ -18,6 +18,7 @@ import (
 	"github.com/pareshvernekar/homecooked/internal/services/fooditem"
 	"github.com/pareshvernekar/homecooked/internal/services/menu"
 	"github.com/pareshvernekar/homecooked/internal/services/menuitem"
+	"github.com/pareshvernekar/homecooked/internal/services/notification"
 	"github.com/pareshvernekar/homecooked/internal/services/order"
 	"github.com/pareshvernekar/homecooked/internal/services/sizeunit"
 	testdb "github.com/pareshvernekar/homecooked/tests/db"
@@ -27,7 +28,9 @@ const testTenantID = "test-tenant"
 
 // env serves the real route table (server.SetupRoutes) over a Postgres test container.
 type env struct {
-	router *gin.Engine
+	router    *gin.Engine
+	notifRepo *repository.PostgreSQLNotificationRepository
+	logger    *logger.Logger
 }
 
 func setupEnv(t *testing.T) *env {
@@ -47,7 +50,10 @@ func setupEnv(t *testing.T) *env {
 	menuItemRepo := repository.NewMenuItemRepository(db.DB, l, testTenantID)
 	menuSvc := menu.NewService(repository.NewMenuRepository(db.DB, l, testTenantID), menuItemRepo, l)
 	menuItemSvc := menuitem.NewService(menuItemRepo, menuSvc, sizeService, l)
-	orderSvc := order.NewService(repository.NewOrderRepository(db.DB, l, testTenantID), menuSvc, l)
+	notifRepo := repository.NewNotificationRepository(db.DB, l)
+	orderSvc := order.NewService(repository.NewOrderRepository(db.DB, l, testTenantID), menuSvc, l,
+		order.WithNotifications(notification.NewBuilder(notifRepo, l)))
+	notificationSvc := notification.NewService(notifRepo)
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -58,8 +64,9 @@ func setupEnv(t *testing.T) *env {
 		handlers.NewSizeUnitHandler(sizeService, l),
 		handlers.NewMenuHandler(menuSvc, menuItemSvc, l),
 		handlers.NewOrderHandler(orderSvc, l),
+		handlers.NewNotificationHandler(notificationSvc, l),
 	)
-	return &env{router: router}
+	return &env{router: router, notifRepo: notifRepo, logger: l}
 }
 
 type apiResponse struct {

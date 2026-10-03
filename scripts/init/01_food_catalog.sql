@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS tenant (
     id          VARCHAR(50) PRIMARY KEY,
     name        VARCHAR(100) NOT NULL,
     description TEXT,
+    cook_admin_phone VARCHAR(50), -- REQNOTIF001: nullable; cook alerts skipped when unset
     is_active   BOOLEAN NOT NULL DEFAULT TRUE,
     created_at  BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW())) * 1000)::BIGINT,
     updated_at  BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM TIMEZONE('UTC', NOW())) * 1000)::BIGINT

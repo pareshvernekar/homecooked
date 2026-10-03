@@ -43,9 +43,10 @@ const orderSelectionSelectCols = `
 const orderPaymentSelectCols = `
 	id, tenant_id, order_id, mode, amount::float8 AS amount, reference_text, created_at, updated_at`
 
-// CreateOrder inserts a new order header.
-// REQORDER001
-func (r *PostgreSQLOrderRepository) CreateOrder(ctx context.Context, o *models.CustomerOrder) error {
+// CreateOrder inserts a new order header. When outbox is non-nil it is inserted in the same
+// transaction; if that insert fails the order write is rolled back.
+// REQORDER001, REQNOTIF002
+func (r *PostgreSQLOrderRepository) CreateOrder(ctx context.Context, o *models.CustomerOrder, outbox *models.NotificationOutbox) error {
 	if err := requireTenantExists(ctx, r.DB, r.TenantID); err != nil {
 		return err
 	}
@@ -58,15 +59,38 @@ func (r *PostgreSQLOrderRepository) CreateOrder(ctx context.Context, o *models.C
 	o.CreatedAt = now
 	o.UpdatedAt = now
 
-	_, err := r.DB.ExecContext(ctx, `
+	tx, err := r.DB.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO customer_order (
 			id, tenant_id, menu_id, customer_name, customer_phone, received_at, expected_at, pickedup_at,
 			status, customization_text, refuse_reason, total_override, frozen_total, is_active, created_at, updated_at
 		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15)`,
 		o.ID, o.TenantID, o.MenuID, o.CustomerName, o.CustomerPhone, o.ReceivedAt, o.ExpectedAt, o.PickedupAt,
 		o.Status, o.CustomizationText, o.RefuseReason, o.TotalOverride, o.FrozenTotal, o.IsActive, now,
-	)
-	return err
+	); err != nil {
+		return err
+	}
+	if err := r.insertOutbox(ctx, tx, o, outbox, now); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// insertOutbox enqueues the optional notification inside the order transaction.
+// REQNOTIF002
+func (r *PostgreSQLOrderRepository) insertOutbox(ctx context.Context, tx *sqlx.Tx, o *models.CustomerOrder, outbox *models.NotificationOutbox, now int64) error {
+	if outbox == nil {
+		return nil
+	}
+	if outbox.OrderID == "" {
+		outbox.OrderID = o.ID
+	}
+	return insertOutboxPending(ctx, tx, outbox, r.TenantID, now)
 }
 
 // ListOrders returns active orders for the tenant, newest first.
@@ -94,9 +118,10 @@ func (r *PostgreSQLOrderRepository) GetActiveOrder(ctx context.Context, id strin
 }
 
 // UpdateOrder writes the mutable header columns. Any per-line frozen amounts in freeze
-// are written in the same transaction (freeze at PICKEDUP).
-// REQORDER003, REQORDER004
-func (r *PostgreSQLOrderRepository) UpdateOrder(ctx context.Context, o *models.CustomerOrder, freeze []models.OrderLineFreeze) error {
+// are written in the same transaction (freeze at PICKEDUP). A non-nil outbox is inserted in that
+// same transaction; if it fails the order write is rolled back.
+// REQORDER003, REQORDER004, REQNOTIF002
+func (r *PostgreSQLOrderRepository) UpdateOrder(ctx context.Context, o *models.CustomerOrder, freeze []models.OrderLineFreeze, outbox *models.NotificationOutbox) error {
 	now := time.Now().UTC().UnixMilli()
 	tx, err := r.DB.BeginTxx(ctx, nil)
 	if err != nil {
@@ -128,6 +153,9 @@ func (r *PostgreSQLOrderRepository) UpdateOrder(ctx context.Context, o *models.C
 		); err != nil {
 			return err
 		}
+	}
+	if err := r.insertOutbox(ctx, tx, o, outbox, now); err != nil {
+		return err
 	}
 	if err := tx.Commit(); err != nil {
 		return err

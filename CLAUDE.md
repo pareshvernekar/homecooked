@@ -206,8 +206,12 @@ func (h *FoodItemHandler) DeleteFoodItem(c *gin.Context)
 - `POST|PATCH|DELETE /api/v1/orders/:id/items[/:itemId]` - Lines with per-component size selections (unfulfilled orders only: RECEIVED, ACCEPTED, IN_PROGRESS, READY)
 - `POST|GET /api/v1/orders/:id/payments` - Record / list payments (cash, credit, paypal, zelle, venmo; overpay allowed; rejected on DECLINED)
 
-### Notifications API (placeholder)
-- `POST /api/v1/notifications` - Placeholder stubs
+### Notifications & Tenant Settings API (REQNOTIF001–005)
+- `GET|PUT /api/v1/tenant/settings` - Read / set the tenant `cook_admin_phone` (`{"cook_admin_phone": "..."}`; `null` or `""` clears; field required). GET returns a `warnings` entry while unset (cook alerts skipped)
+- `GET /api/v1/orders/:id/notifications` - Notification outbox audit for an order (event, recipient, channel, status, attempts, last_error, timestamps; 404 for orders outside the tenant)
+- Transactional outbox: order create/accept/refuse/ready/pickup insert a `notification_outbox` row in the **same DB transaction** as the order write (`order.created`→cook if `cook_admin_phone` set else skipped with a warning; `order.accepted|declined|ready|picked_up`→`customer_phone`; declined body includes `refuse_reason`; start-preparing never enqueues). Unique per `(tenant_id, order_id, event_type)`
+- Async delivery: `notification.Worker` (`internal/services/notification/`) claims due rows with `FOR UPDATE SKIP LOCKED`, sends via `SmsProvider`, then marks `delivered`, retries with exponential backoff, or `dead` after 5 attempts. `DrainOnce(ctx)` runs one cycle (tests); `Run(ctx)` polls. Order HTTP handlers never wait on the provider
+- Providers: `SmsProvider` interface; `LocalSmsProvider` (default, `SMS_PROVIDER=local`) writes to `sms_dev_sink` + structured log; `FailSmsProvider` for failure tests
 
 ## Common Patterns
 
@@ -247,7 +251,7 @@ Key tables:
 - `size_unit` - System + tenant custom size units
 - `menu` / `menu_category` / `menu_item` / `menu_item_component` / `menu_item_component_size_option` - Unified menus
 - `customer_order` / `order_item` / `order_item_component_selection` / `order_payment` - Order intake and payment ledger
-- Notifications table (placeholder)
+- `notification_outbox` / `sms_dev_sink` - Transactional notification outbox and local SMS dev sink; `tenant.cook_admin_phone` holds the cook alert number (migration `000007`, `scripts/init/04_notifications.sql`)
 
 ### Row-Level Security Policy
 
@@ -271,6 +275,9 @@ cache:
 
 ### Environment Variables
 - `TENANT_ID` - Tenant identifier (defaults to "1")
+- `NOTIFICATION_WORKER` - Notification delivery worker in `cmd/main.go`; on by default, `0|false|off|no` disables
+- `NOTIFICATION_POLL_INTERVAL` - Worker poll interval, Go duration (default `5s`)
+- `SMS_PROVIDER` - SMS provider (`local` default; unknown values fail startup)
 - Database connection via Viper
 
 ## Build & Run Commands
@@ -335,7 +342,7 @@ func TestUpdateFoodItem_Success(t *testing.T) {
 
 - Current branch: `implementation-phase-4`
 - Core FoodItem CRUD is implemented with validation and caching
-- Other endpoints (notifications) are placeholder stubs
+- Order notifications (outbox + local SMS worker) are implemented; real SMS vendor integration is deferred (swap the `SmsProvider`)
 - Caching framework built but not fully wired for all operations
 - Multi-tenancy via PostgreSQL RLS
 
