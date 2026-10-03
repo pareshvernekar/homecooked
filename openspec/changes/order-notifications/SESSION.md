@@ -1,6 +1,7 @@
 # Session: order-notifications
 
 **Change:** `openspec/changes/order-notifications/`  
+**Branch:** `feature/order-notifications` (stacked on `feature/order-lifecycle`)  
 **Status:** Artifacts complete. **Requires `order-lifecycle` applied first.**
 
 ## Locked decisions
